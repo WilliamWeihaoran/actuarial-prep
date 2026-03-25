@@ -34,14 +34,13 @@ body {
 }
 
 @media print {
-  body { background: #fff !important; color: #111 !important; }
+  html:not(.print-dark) body { background: #fff !important; color: #111 !important; }
   /* Hide everything except the analytics content */
   body > * { display: none !important; }
   /* Show only the app root, but hide nav chrome */
   body > #root { display: block !important; }
-  /* Hide exam nav, hours bar, sub-tabs, manage panel */
+  /* Hide exam nav, hours bar, sub-tabs (children 1–3); analytics content (child 4) stays visible */
   #root > div > div:first-child,
   #root > div > div:nth-child(2),
-  #root > div > div:nth-child(3),
-  #root > div > div:nth-child(4) { display: none !important; }
+  #root > div > div:nth-child(3) { display: none !important; }
 }

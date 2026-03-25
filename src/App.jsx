@@ -14,10 +14,11 @@ const TABS = ["Tasks", "Topics", "Mistakes", "Practice", "Analytics"];
 
 export default function App() {
   const { data, update, loading, saving, error } = useData();
-  const [activeExamId, setActiveExamId] = useState(null);
-  const [subTab, setSubTab]             = useState("Tasks");
-  const [showManage, setShowManage]     = useState(false);
-  const [focusTask, setFocusTask]       = useState(null);
+  const [activeExamId, setActiveExamId]       = useState(null);
+  const [subTab, setSubTab]                   = useState("Tasks");
+  const [showManage, setShowManage]           = useState(false);
+  const [focusTask, setFocusTask]             = useState(null);
+  const [practiceFullscreen, setPracticeFullscreen] = useState(false);
 
   // ── Derived state ──────────────────────────────────────────────
   const visibleExams = data.exams.filter(e => !e.archived);
@@ -168,6 +169,9 @@ const target = TAB_MAP[e.key.toLowerCase()];
   return (
     <div style={{ background: C.bg, minHeight: "100vh", padding: "1.25rem", fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
 
+      {/* Nav chrome hidden when practice session is active/done */}
+      {!(subTab === "Practice" && practiceFullscreen) && (<>
+
       {/* Exam nav */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, borderBottom: `1px solid ${C.bdr}`, paddingBottom: 10, flexWrap: "wrap" }}>
         {visibleExams.map(ex => (
@@ -228,6 +232,8 @@ const target = TAB_MAP[e.key.toLowerCase()];
         ))}
       </div>
 
+      </>)}
+
       {/* Tab content */}
       {subTab === "Tasks" && (
         <TasksTab
@@ -277,6 +283,7 @@ const target = TAB_MAP[e.key.toLowerCase()];
           onAddMistake={addMistake}
           onAddSession={addSession}
           onDeleteSession={deleteSession}
+          onModeChange={setPracticeFullscreen}
         />
       )}
       {subTab === "Analytics" && (

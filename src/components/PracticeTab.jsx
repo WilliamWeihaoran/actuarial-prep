@@ -92,7 +92,7 @@ const MissedCard = ({ qNum, d, topics, onToggleOpen, onSetDetail, onLog, onRemov
   </div>
 );
 
-export default function PracticeTab({ examId, chapters, sessions = [], mistakes = [], onAddMistake, onAddSession, onDeleteSession }) {
+export default function PracticeTab({ examId, chapters, sessions = [], mistakes = [], onAddMistake, onAddSession, onDeleteSession, onModeChange }) {
   const topics = chapters.filter(c => c.examId === examId).map(c => c.name);
   const today  = new Date().toISOString().slice(0, 10);
 
@@ -109,7 +109,8 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   const [summaryData, setSummaryData]     = useState(null);
   const [confirm, setConfirm]             = useState(null);
   const [editingName, setEditingName]     = useState(false);
-  const [winWidth, setWinWidth]           = useState(() => window.innerWidth);
+  const [winWidth,  setWinWidth]  = useState(() => window.innerWidth);
+  const [winHeight, setWinHeight] = useState(() => window.innerHeight);
   const timerRef    = useRef(null);
   const sessionIdRef = useRef(null);
 
@@ -127,7 +128,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
   useEffect(() => {
-    const handler = () => setWinWidth(window.innerWidth);
+    const handler = () => { setWinWidth(window.innerWidth); setWinHeight(window.innerHeight); };
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
@@ -196,6 +197,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => setTimer(t => t + 1), 1000);
     setMode("active");
+    onModeChange?.(true);
   };
 
   const togglePause = () => {
@@ -235,6 +237,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     });
     setDetails(init);
     setMode("done");
+    // keep fullscreen during done/grading
   };
 
   const reset = () => {
@@ -255,6 +258,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     setEditingName(false);
     setCfg(c => ({ ...c, name: "", startFrom: "1" }));
     setMode("setup");
+    onModeChange?.(false);
   };
 
   // ── Review / done helpers ──────────────────────────────────────
@@ -375,6 +379,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     setPaused(false);
     setEditingName(false);
     setMode("summary");
+    onModeChange?.(false);
   };
 
   // Check readiness before save & finish
@@ -678,7 +683,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             </div>
 
             {cfg.timerMode === "timed" && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: winWidth > winHeight ? "repeat(6, 1fr)" : "repeat(3, 1fr)", gap: 8 }}>
                 {TIMER_OPTIONS.map(({ label, minutes }) => {
                   const sel = cfg.timerDuration === minutes;
                   return (
@@ -912,84 +917,88 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
       />
 
       {/* ── STICKY HEADER ── */}
-      <div style={{
-        position: "sticky", top: 0, zIndex: 20,
-        background: C.bg,
-        paddingBottom: 10, paddingTop: 6,
-        borderBottom: `1px solid ${C.bdr}`, marginBottom: 12,
-      }}>
-        {/* Session name */}
-        <div style={{ fontSize: 12, color: C.mut, marginBottom: 8, textAlign: "center" }}>
-          {cfg.name.trim() || (cfg.type === "topic" ? cfg.topic : "Exam")} · {grid.length} questions
-          {timerLimit != null && <span style={{ color: timerWarning ? C.ambL : C.dim }}> · {fmt(timerLimit)} limit</span>}
-        </div>
-
-        {/* Timer + Pause in one row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      {(() => {
+        const isLand = winWidth > winHeight && winHeight < 500;
+        const timerBg    = paused ? C.ambBg : timerCritical ? C.redBg : C.sur2;
+        const timerBd    = paused ? C.amb   : timerCritical ? C.red   : timerWarning ? C.amb : C.bdr2;
+        const timerCol   = paused ? C.ambL  : timerCritical ? C.redL  : timerWarning ? C.ambL : C.txt;
+        const dotColor   = paused ? C.ambL  : timerCritical ? C.redL  : timerWarning ? C.ambL : C.grnL;
+        const glowShadow = paused
+          ? `0 0 18px rgba(200,140,20,0.35)`
+          : timerCritical ? `0 0 18px rgba(153,60,29,0.4)`
+          : timerWarning  ? `0 0 18px rgba(133,79,11,0.35)`
+          : `0 0 18px rgba(37,99,235,0.18)`;
+        return (
           <div style={{
-            flex: 1, minWidth: 0,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-            background: C.sur2,
-            border: `1px solid ${timerCritical ? C.red : timerWarning ? C.amb : C.bdr2}`,
-            borderRadius: 12, padding: "10px 14px",
-            boxShadow: paused ? "none" : timerCritical ? `0 0 20px rgba(153,60,29,0.4)` : timerWarning ? `0 0 20px rgba(133,79,11,0.35)` : `0 0 20px rgba(37,99,235,0.18)`,
-            overflow: "hidden",
+            position: "sticky", top: 0, zIndex: 20,
+            background: C.bg,
+            paddingBottom: isLand ? 6 : 10, paddingTop: isLand ? 4 : 6,
+            borderBottom: `1px solid ${C.bdr}`, marginBottom: 12,
           }}>
-            <div style={{
-              width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-              background: paused ? C.ambL : timerCritical ? C.redL : timerWarning ? C.ambL : C.grnL,
-              boxShadow: paused ? "none" : `0 0 10px ${timerCritical ? C.redL : timerWarning ? C.ambL : C.grnL}`,
-            }} />
-            <span style={{
-              fontFamily: "monospace",
-              fontSize: "clamp(22px, 8vw, 44px)",
-              fontWeight: 700,
-              letterSpacing: "clamp(1px, 0.8vw, 4px)",
-              color: timerCritical ? C.redL : timerWarning ? C.ambL : C.txt,
-              whiteSpace: "nowrap",
-            }}>
-              {fmt(timeDisplay)}
-            </span>
-          </div>
-          <button onClick={togglePause}
-            style={{
-              ...btn, flexShrink: 0, padding: "10px 14px", fontSize: 18, lineHeight: 1,
-              color: paused ? C.blueL : C.mut, borderColor: paused ? C.blueBd : C.bdr2,
-            }}>
-            {paused ? "▶" : "⏸"}
-          </button>
-        </div>
+            {/* Session metadata — smaller, single line */}
+            <div style={{ fontSize: 11, color: C.dim, marginBottom: isLand ? 4 : 6, textAlign: "center" }}>
+              {cfg.name.trim() || (cfg.type === "topic" ? cfg.topic : "Exam")} · {grid.length}Q
+              {timerLimit != null && <span style={{ color: timerWarning ? C.ambL : C.dim }}> · {fmt(timerLimit)}</span>}
+            </div>
 
-        {/* Warning / paused label */}
-        {paused && <div style={{ textAlign: "center", marginBottom: 6, fontSize: 12, color: C.ambL }}>Paused</div>}
-        {timerCritical && !paused && <div style={{ textAlign: "center", marginBottom: 6, fontSize: 12, color: C.redL }}>Almost out of time!</div>}
-        {timerWarning && !timerCritical && !paused && <div style={{ textAlign: "center", marginBottom: 6, fontSize: 12, color: C.ambL }}>Under 5 min left</div>}
+            {/* Timer + Pause in one row — pause button stretches to full timer height */}
+            <div style={{ display: "flex", alignItems: "stretch", gap: 6, marginBottom: isLand ? 4 : 6 }}>
+              <div style={{
+                flex: 1, minWidth: 0,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                background: timerBg, border: `1px solid ${timerBd}`,
+                borderRadius: 10, padding: isLand ? "6px 10px" : "10px 14px",
+                boxShadow: glowShadow, overflow: "hidden",
+                transition: "background 0.3s, border-color 0.3s",
+              }}>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: dotColor, boxShadow: `0 0 8px ${dotColor}`, transition: "background 0.3s" }} />
+                <span style={{
+                  fontFamily: "monospace",
+                  fontSize: isLand ? "clamp(20px, 6vw, 34px)" : "clamp(24px, 9vw, 48px)",
+                  fontWeight: 700, letterSpacing: "clamp(1px, 0.6vw, 4px)",
+                  color: timerCol, whiteSpace: "nowrap", transition: "color 0.3s",
+                }}>
+                  {fmt(timeDisplay)}
+                </span>
+                {/* Paused badge inline — no layout shift */}
+                <span style={{ fontSize: 10, fontWeight: 600, color: C.ambL, visibility: paused ? "visible" : "hidden", flexShrink: 0 }}>PAUSED</span>
+              </div>
+              <button onClick={togglePause} style={{
+                ...btn, flexShrink: 0, padding: "0 14px", fontSize: 18, lineHeight: 1, alignSelf: "stretch",
+                color: paused ? C.ambL : C.mut, borderColor: paused ? C.amb : C.bdr2,
+                transition: "color 0.3s, border-color 0.3s",
+              }}>
+                {paused ? "▶" : "⏸"}
+              </button>
+            </div>
 
-        {/* Stats — single scrollable row, compact labels on narrow screens */}
-        <div style={{ display: "flex", gap: compactStats ? 4 : 8, flexWrap: "nowrap", justifyContent: "center", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
-          <span style={{ background: C.grnBg, color: C.grnL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>● {confidentCount}{!compactStats && " confident"}</span>
-          <span style={{ background: C.ambBg, color: C.ambL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>● {unsureCount}{!compactStats && " unsure"}</span>
-          <span style={{ background: C.redBg, color: C.redL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>⚑ {flaggedCount}{!compactStats && " flagged"}</span>
-          <span style={{ background: C.sur2,  color: C.mut,  fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>{answeredCount}/{grid.length}{!compactStats && " answered"}</span>
-        </div>
+            {/* Warning labels — reserved height to avoid jitter */}
+            <div style={{ height: 18, textAlign: "center" }}>
+              {timerCritical && !paused && <span style={{ fontSize: 11, color: C.redL }}>Almost out of time!</span>}
+              {timerWarning && !timerCritical && !paused && <span style={{ fontSize: 11, color: C.ambL }}>Under 5 min left</span>}
+            </div>
 
-        {/* Key buffer + active Q hint */}
-        {keyBufDisplay ? (
-          <div style={{ textAlign: "center", marginTop: 6, fontSize: 12, color: C.blueL, fontFamily: "monospace", fontWeight: 600 }}>
-            ⌨ Q{keyBufDisplay}…
-          </div>
-        ) : activeQ !== null ? (
-          <div style={{ textAlign: "center", marginTop: 6, fontSize: 11, color: C.blueL }}>
-            Q{startFromNum + activeQ} active · A-E or !@#$% = set/cycle · F = flag · Enter = next
-          </div>
-        ) : null}
+            {/* Stats row */}
+            <div style={{ display: "flex", gap: compactStats ? 4 : 8, flexWrap: "nowrap", justifyContent: "center", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+              <span style={{ background: C.grnBg, color: C.grnL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>● {confidentCount}{!compactStats && " confident"}</span>
+              <span style={{ background: C.ambBg, color: C.ambL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>● {unsureCount}{!compactStats && " unsure"}</span>
+              <span style={{ background: C.redBg, color: C.redL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>⚑ {flaggedCount}{!compactStats && " flagged"}</span>
+              <span style={{ background: C.sur2,  color: C.mut,  fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>{answeredCount}/{grid.length}{!compactStats && " answered"}</span>
+            </div>
 
-        {paused && (
-          <div style={{ textAlign: "center", marginTop: 8, padding: "5px 14px", fontSize: 12, color: C.ambL, background: C.ambBg, border: `1px solid ${C.amb}`, borderRadius: 8 }}>
-            Session paused — choices visible but locked
+            {/* Key buffer / active Q hint */}
+            {keyBufDisplay ? (
+              <div style={{ textAlign: "center", marginTop: 5, fontSize: 12, color: C.blueL, fontFamily: "monospace", fontWeight: 600 }}>
+                ⌨ Q{keyBufDisplay}…
+              </div>
+            ) : activeQ !== null ? (
+              <div style={{ textAlign: "center", marginTop: 5, fontSize: 11, color: C.blueL }}>
+                Q{startFromNum + activeQ} active · A-E or !@#$% · F = flag · Enter = next
+              </div>
+            ) : null}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* ── SCROLLABLE QUESTION GRID ── */}
       {(() => {
@@ -1064,11 +1073,6 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         );
       })()}
 
-      <div style={{ marginTop: 10, fontSize: 11, color: C.dim, textAlign: "center", lineHeight: 1.6 }}>
-        Click letter: once = green · twice = yellow · thrice = clear<br />
-        Keyboard: <span style={{ fontFamily: "monospace" }}>21A</span> = Q21→A · <span style={{ fontFamily: "monospace" }}>AA</span> = yellow · <span style={{ fontFamily: "monospace" }}>F</span> = flag · <span style={{ fontFamily: "monospace" }}>Enter</span> = next · <span style={{ fontFamily: "monospace" }}>P</span>/<span style={{ fontFamily: "monospace" }}>R</span> = pause/resume
-      </div>
-
       {/* Finish + Cancel at the bottom */}
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
         <button style={{ ...btnP, flex: 1, padding: "13px 0", fontSize: 15, fontWeight: 700 }} onClick={finish}>
@@ -1122,7 +1126,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             onClick={() => toggleLog(i)}
             title={inLog ? (isLogged ? "Already logged" : "Remove from log") : "Add to log"}
             style={{
-              width: 20, height: 26, borderRadius: 4, fontSize: 12, fontWeight: 700,
+              width: 28, height: 34, borderRadius: 6, fontSize: 14, fontWeight: 700,
               background: inLog  ? (isLogged ? C.grnBg : C.ambBg) : "transparent",
               color:      inLog  ? (isLogged ? C.grnL  : C.ambL)  : C.dim,
               border:     `1px solid ${inLog ? (isLogged ? C.grn : C.amb) : C.bdr2}`,
@@ -1132,13 +1136,13 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             {inLog ? (isLogged ? "✓" : "•") : "+"}
           </button>
           <button onClick={() => markQ(i, true)}
-            style={{ width: 36, height: 30, borderRadius: 6, fontSize: 14, fontWeight: 700,
+            style={{ width: 40, height: 34, borderRadius: 6, fontSize: 16, fontWeight: 700,
               background: isCorrect ? C.grn  : C.sur2,
               color:      isCorrect ? C.grnL : C.dim,
               border:     `1px solid ${isCorrect ? C.grnL : C.bdr2}`,
               cursor: "pointer", flexShrink: 0 }}>✓</button>
           <button onClick={() => markQ(i, false)}
-            style={{ width: 36, height: 30, borderRadius: 6, fontSize: 14, fontWeight: 700,
+            style={{ width: 40, height: 34, borderRadius: 6, fontSize: 16, fontWeight: 700,
               background: isWrong ? C.red  : C.sur2,
               color:      isWrong ? C.redL : C.dim,
               border:     `1px solid ${isWrong ? C.redL : C.bdr2}`,
@@ -1166,58 +1170,49 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           open={!!confirm}
           title={confirm?.title}
           message={confirm?.message}
-          confirmLabel="Save anyway"
-          danger={false}
+          confirmLabel={confirm?.confirmLabel || "Confirm"}
+          danger={confirm?.danger !== false}
           onConfirm={confirm?.onConfirm}
           onCancel={() => setConfirm(null)}
         />
 
-        {/* Header with editable session name */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {editingName ? (
-              <input
-                autoFocus
-                style={{ ...inp, fontSize: 15, fontWeight: 500, padding: "4px 10px" }}
-                value={cfg.name}
-                onChange={e => setCfg(c => ({ ...c, name: e.target.value }))}
-                onBlur={() => setEditingName(false)}
-                onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditingName(false); }}
-              />
-            ) : (
-              <span
-                onClick={() => setEditingName(true)}
-                title="Click to rename session"
-                style={{ fontSize: 15, fontWeight: 500, color: C.txt, cursor: "text" }}
-              >
-                {cfg.name.trim() || `${cfg.type === "topic" ? cfg.topic : "Exam"} - ${today}`}
-              </span>
-            )}
+        {/* ── Sticky stats header ── */}
+        <div style={{ position: "sticky", top: 0, zIndex: 20, background: C.bg, paddingBottom: 10, paddingTop: 6, borderBottom: `1px solid ${C.bdr}`, marginBottom: 14 }}>
+          {/* Session name + timer */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {editingName ? (
+                <input autoFocus style={{ ...inp, fontSize: 14, fontWeight: 500, padding: "3px 8px" }}
+                  value={cfg.name} onChange={e => setCfg(c => ({ ...c, name: e.target.value }))}
+                  onBlur={() => setEditingName(false)}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditingName(false); }} />
+              ) : (
+                <span onClick={() => setEditingName(true)} title="Click to rename"
+                  style={{ fontSize: 14, fontWeight: 500, color: C.txt, cursor: "text" }}>
+                  {cfg.name.trim() || `${cfg.type === "topic" ? cfg.topic : "Exam"} - ${today}`}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: C.dim, flexShrink: 0, marginLeft: 12 }}>{fmt(timer)} · {totalMarked}/{grid.length}</div>
           </div>
-          <div style={{ fontSize: 12, color: C.dim, flexShrink: 0, marginLeft: 12 }}>{fmt(timer)} · {totalMarked}/{grid.length} marked</div>
-        </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-          {[
-            { n: markedCorrect,             label: "Correct",  bg: C.grnBg, bd: C.grn,  c: C.grnL },
-            { n: markedWrong,               label: "Wrong",    bg: C.redBg, bd: C.red,  c: C.redL },
-            { n: grid.length - totalMarked, label: "Unmarked", bg: C.sur2,  bd: C.bdr2, c: C.txt  },
-          ].map(({ n, label, bg, bd, c }) => (
-            <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "12px 20px", textAlign: "center", flex: 1, minWidth: 72 }}>
-              <div style={{ fontSize: 22, fontWeight: 600, color: c }}>{n}</div>
-              <div style={{ fontSize: 11, color: C.mut, marginTop: 2 }}>{label}</div>
-            </div>
-          ))}
-          {totalMarked > 0 && (
-            <div style={{ background: score >= 70 ? C.grnBg : score >= 50 ? C.ambBg : C.redBg, border: `1px solid ${score >= 70 ? C.grn : score >= 50 ? C.amb : C.red}`, borderRadius: 10, padding: "12px 20px", textAlign: "center", flex: 1, minWidth: 72 }}>
-              <div style={{ fontSize: 22, fontWeight: 600, color: score >= 70 ? C.grnL : score >= 50 ? C.ambL : C.redL }}>{score}%</div>
-              <div style={{ fontSize: 11, color: C.mut, marginTop: 2 }}>Score</div>
-            </div>
-          )}
-        </div>
-
-        <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>
-          Use + on any row to add it to the log section below. Click the dot to remove.
+          {/* Stats bar */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[
+              { n: markedCorrect,             label: "Correct",  bg: C.grnBg, bd: C.grn,  c: C.grnL },
+              { n: markedWrong,               label: "Wrong",    bg: C.redBg, bd: C.red,  c: C.redL },
+              { n: grid.length - totalMarked, label: "Unmarked", bg: C.sur2,  bd: C.bdr2, c: C.txt  },
+              { n: `${score}%`,               label: "Score",
+                bg: score >= 70 ? C.grnBg : score >= 50 ? C.ambBg : C.redBg,
+                bd: score >= 70 ? C.grn   : score >= 50 ? C.amb   : C.red,
+                c:  score >= 70 ? C.grnL  : score >= 50 ? C.ambL  : C.redL },
+            ].map(({ n, label, bg, bd, c }) => (
+              <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 8, padding: "8px 14px", textAlign: "center", flex: 1, minWidth: 60 }}>
+                <div style={{ fontSize: 18, fontWeight: 600, color: c }}>{n}</div>
+                <div style={{ fontSize: 10, color: C.mut, marginTop: 1 }}>{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {reviewGrid}
@@ -1247,7 +1242,16 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
 
         <div style={{ display: "flex", gap: 8 }}>
           <button style={btnP} onClick={handleSaveAndFinish}>Save & finish</button>
-          <button style={btn} onClick={reset}>Discard</button>
+          <button style={{ ...btn, color: C.redL, borderColor: C.red }}
+            onClick={() => setConfirm({
+              title: "Discard session?",
+              message: "All grading and log entries will be lost.",
+              confirmLabel: "Discard",
+              danger: true,
+              onConfirm: () => { setConfirm(null); reset(); },
+            })}>
+            Discard
+          </button>
         </div>
       </div>
     );

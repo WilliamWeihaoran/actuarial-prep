@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { C } from "../constants";
+import html2canvas from "html2canvas";
 
 const fmtDuration = (s) => {
   if (s >= 3600) return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
@@ -37,6 +38,8 @@ function dateOffset(daysAgo) {
 
 export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, sessions, mistakes, tasks = [] }) {
   const [timeFilter, setTimeFilter] = useState("all"); // all | today | week | month
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const printRef = useRef(null);
 
   const today       = new Date().toISOString().slice(0, 10);
@@ -179,24 +182,6 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
   });
   const maxTrendSec = Math.max(...timePerQTrend.map(s => s.avg), 1);
 
-  // ── Most-missed Q# ─────────────────────────────────────────────
-  const missedByQNum = {};
-  sessions.forEach(s => {
-    if (!s.grid || !s.startFrom) return;
-    s.grid.forEach((q, i) => {
-      const correct = typeof q === "object" ? q.correct : (q === 2 ? false : q === 1 ? true : null);
-      if (correct === false) {
-        const qNum = (s.startFrom || 1) + i;
-        missedByQNum[qNum] = (missedByQNum[qNum] || 0) + 1;
-      }
-    });
-  });
-  const mostMissed = Object.entries(missedByQNum)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 15)
-    .map(([qNum, count]) => ({ qNum: parseInt(qNum), count }));
-  const maxMissedCount = mostMissed.length > 0 ? mostMissed[0].count : 1;
-
   // ── Chapter completion ─────────────────────────────────────────
   const chapDone  = examChapters.filter(c => c.done).length;
   const chapTotal = examChapters.length;
@@ -222,10 +207,35 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
   const topicTimeRows = Object.entries(timeByTopic).filter(([, h]) => h > 0).sort(([, a], [, b]) => b - a);
   const maxTopicH = topicTimeRows.length > 0 ? topicTimeRows[0][1] : 1;
 
-  const handleExport = () => window.print();
+  const handleExportPDF = (dark) => {
+    setShowExportMenu(false);
+    if (dark) document.documentElement.classList.add("print-dark");
+    window.print();
+    if (dark) setTimeout(() => document.documentElement.classList.remove("print-dark"), 500);
+  };
+
+  const handleExportPNG = async () => {
+    setShowExportMenu(false);
+    if (!printRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(printRef.current, {
+        backgroundColor: C.bg,
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const link = document.createElement("a");
+      link.download = `analytics-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
-    <div>
+    <div ref={printRef}>
       {/* Time filter + export */}
       <div style={{ display: "flex", gap: 6, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 11, color: C.dim }}>Period:</span>
@@ -242,11 +252,38 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
           </button>
         ))}
         <div style={{ flex: 1 }} />
-        <button onClick={handleExport}
-          style={{ fontSize: 11, padding: "3px 12px", borderRadius: 6, cursor: "pointer",
-            background: C.sur2, color: C.mut, border: `1px solid ${C.bdr2}` }}>
-          ⬇ Export PDF
-        </button>
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowExportMenu(v => !v)}
+            style={{ fontSize: 11, padding: "3px 12px", borderRadius: 6, cursor: "pointer",
+              background: C.sur2, color: C.mut, border: `1px solid ${C.bdr2}` }}>
+            {exporting ? "Exporting…" : "⬇ Export ▾"}
+          </button>
+          {showExportMenu && (
+            <div style={{
+              position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50,
+              background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10,
+              padding: 4, minWidth: 150, boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+            }}>
+              {[
+                { label: "PDF – light background", action: () => handleExportPDF(false) },
+                { label: "PDF – dark background",  action: () => handleExportPDF(true)  },
+                { label: "PNG – dark background",  action: handleExportPNG              },
+              ].map(({ label, action }) => (
+                <button key={label} onClick={action}
+                  style={{ display: "block", width: "100%", textAlign: "left",
+                    fontSize: 12, padding: "7px 12px", borderRadius: 7,
+                    background: "transparent", border: "none", color: C.txt,
+                    cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.background = C.sur2}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Exam timeline ── */}
@@ -590,26 +627,6 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
         </div>
       )}
 
-      {/* ── Most-missed Q# ── */}
-      {mostMissed.length > 0 && (
-        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 12 }}>Most-missed question numbers</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {mostMissed.map(({ qNum, count }) => {
-              const intensity = count / maxMissedCount;
-              const bg = `rgba(153,60,29,${0.15 + intensity * 0.65})`;
-              const bd = `rgba(240,149,117,${0.2 + intensity * 0.6})`;
-              return (
-                <div key={qNum} title={`Q${qNum}: missed ${count}×`}
-                  style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 8, padding: "6px 10px", textAlign: "center", minWidth: 44 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.redL }}>Q{qNum}</div>
-                  <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{count}×</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
