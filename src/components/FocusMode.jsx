@@ -105,12 +105,13 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
 
   // Layout detection
   const isLandscape  = winW > winH;
-  const isPhoneLand  = isLandscape && winH < 500;   // phone landscape: wide + short
-  const isTabletLand = isLandscape && winH >= 500 && winW < 1280; // tablet/iPad landscape
+  const isPhoneLand  = isLandscape && winH < 500;
+  const isTabletLand = isLandscape && winH >= 500 && winW < 1280;
+  const isMobileLand = isPhoneLand || isTabletLand;
 
   // ── Log confirmation screen ────────────────────────────────────
   if (showLog) {
-    const logLandscape = isPhoneLand; // use horizontal layout on phone landscape
+    const logLandscape = isPhoneLand;
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh" }}>
         <div style={{
@@ -169,7 +170,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
               <button style={{ ...btnP, flex: 1, padding: "10px 0", fontSize: 13 }} onClick={confirmLog}>
                 {markDone ? "Log & complete" : "Log & exit"}
               </button>
-              <button style={{ ...btn, padding: "10px 14px", fontSize: 12, color: C.dim }} onClick={onExit}>
+              <button style={{ ...btn, padding: "10px 14px", fontSize: 12, color: C.redL }} onClick={onExit}>
                 Skip
               </button>
             </div>
@@ -179,12 +180,10 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
     );
   }
 
-  // ── Timer block (reused across layouts) ───────────────────────
-  const timerFontSize = isPhoneLand
-    ? "clamp(52px, 14vh, 82px)"
-    : isTabletLand
-      ? "clamp(90px, 16vw, 140px)"
-      : "clamp(64px, 20vw, 108px)";
+  // ── Timer block ────────────────────────────────────────────────
+  const timerFontSize = isMobileLand
+    ? (isPhoneLand ? "clamp(52px, 13vh, 80px)" : "clamp(70px, 14vh, 120px)")
+    : "clamp(40px, 15vw, 108px)";
 
   const timerBg     = paused ? C.ambBg  : C.sur2;
   const timerBd     = paused ? C.amb    : C.bdr2;
@@ -192,32 +191,33 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   const timerGlow   = paused ? `0 0 40px rgba(200,140,20,0.3)` : `0 0 48px rgba(37,99,235,0.14)`;
 
   const timerBlock = (
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: "center", width: "100%" }} onClick={togglePause}>
       <div style={{
-        display: "inline-flex", alignItems: "center", gap: isPhoneLand ? 12 : 24,
+        display: "flex", alignItems: "center", gap: isMobileLand ? 12 : 24,
         background: timerBg, border: `1.5px solid ${timerBd}`,
-        borderRadius: isPhoneLand ? 16 : 24,
-        padding: isPhoneLand ? "16px 28px" : "28px 48px",
+        borderRadius: isMobileLand ? 16 : 24,
+        padding: isMobileLand ? "14px 18px" : "20px 24px",
         boxShadow: timerGlow,
         width: "100%", boxSizing: "border-box", justifyContent: "center",
+        cursor: "pointer",
         transition: "background 0.3s, border-color 0.3s, box-shadow 0.3s",
       }}>
         <div style={{
-          width: isPhoneLand ? 10 : 14, height: isPhoneLand ? 10 : 14, borderRadius: "50%",
+          width: isMobileLand ? 10 : 14, height: isMobileLand ? 10 : 14, borderRadius: "50%",
           background: paused ? C.ambL : C.grnL,
           boxShadow: paused ? `0 0 12px ${C.ambL}` : `0 0 16px ${C.grnL}`, flexShrink: 0,
           transition: "background 0.3s",
         }} />
         <span style={{
           fontFamily: "monospace", fontSize: timerFontSize, fontWeight: 700,
-          color: timerColor, letterSpacing: "clamp(2px, 0.5vw, 8px)",
+          color: timerColor, letterSpacing: "clamp(2px, 0.3vw, 6px)",
           transition: "color 0.3s",
         }}>
           {fmt(timer)}
         </span>
       </div>
 
-      {tickCount > 0 && !isPhoneLand && (
+      {tickCount > 0 && !isMobileLand && (
         <div style={{ display: "flex", gap: 7, justifyContent: "center", marginTop: 12, flexWrap: "wrap" }}>
           {Array.from({ length: Math.min(tickCount, TICK_MAX) }).map((_, i) => {
             const isFull = (i + 1) * 1800 <= timer;
@@ -232,22 +232,6 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
           {tickCount > TICK_MAX && <span style={{ fontSize: 10, color: C.dim, alignSelf: "center" }}>+{tickCount - TICK_MAX}</span>}
         </div>
       )}
-    </div>
-  );
-
-  // ── Controls ──────────────────────────────────────────────────
-  const controls = (
-    <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-      <button onClick={togglePause}
-        style={{ ...btn, minWidth: 110, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13, color: paused ? C.ambL : C.mut, borderColor: paused ? C.amb : C.bdr2 }}>
-        {paused ? "▶  Resume" : "⏸  Pause"}
-      </button>
-      <button onClick={handleEnd}
-        style={{ ...btnP, minWidth: 110, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13 }}>
-        End session
-      </button>
     </div>
   );
 
@@ -270,20 +254,20 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
 
   // ── Quick add section ─────────────────────────────────────────
   const quickAdd = (
-    <div style={{ borderTop: isPhoneLand ? "none" : `1px solid ${C.bdr}`, paddingTop: isPhoneLand ? 0 : 14 }}>
+    <div style={{ borderTop: isMobileLand ? "none" : `1px solid ${C.bdr}`, paddingTop: isMobileLand ? 0 : 14 }}>
       <div style={{ fontSize: 12, color: C.mut, marginBottom: 8 }}>Quick add task</div>
       {showAdd ? (
         <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
           <div style={{ display: "grid", gridTemplateColumns: "7fr 3fr", gap: 8, marginBottom: 8 }}>
             <div>
               <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Task title</div>
-              <input autoFocus style={inp} placeholder="Task title" value={tf.title}
+              <input autoFocus style={{ ...inp, fontSize: 16 }} placeholder="Task title" value={tf.title}
                 onChange={e => setTf({ ...tf, title: e.target.value })}
                 onKeyDown={e => e.key === "Enter" && handleAddTask()} />
             </div>
             <div>
               <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Est. hours</div>
-              <input type="number" min={0} step={0.25} style={inp} value={tf.hours}
+              <input type="number" min={0} step={0.25} style={{ ...inp, fontSize: 16 }} value={tf.hours}
                 onChange={e => setTf({ ...tf, hours: e.target.value })}
                 onBlur={e => { const v = parseFloat(e.target.value); setTf(f => ({ ...f, hours: !isNaN(v) && v > 0 ? String(v) : "1" })); }} />
             </div>
@@ -325,7 +309,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
               <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2 }}>
                 <span style={{ background: pp.bg, color: pp.c, fontSize: 11, padding: "1px 8px", borderRadius: 99 }}>{t.priority}</span>
                 <span style={{ fontSize: 11, color: C.dim }}>{t.hours}h est.</span>
-                <span style={{ fontSize: 11, color: C.grnL }}>✓ Added</span>
+                <span style={{ fontSize: 11, color: C.grnL }}>Added</span>
               </div>
             </div>
           </div>
@@ -338,50 +322,66 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   const exitBtn = (
     <button onClick={() => { clearInterval(timerRef.current); onExit(); }}
       style={{ ...btn, fontSize: 12, padding: "3px 10px", color: C.dim }}>
-      ← Back to tasks
+      Back to tasks
     </button>
   );
 
-  // ── Phone landscape: timer left (65%), sidebar right ────────
-  if (isPhoneLand) {
+  // ── Mobile landscape layout (phone + tablet) ──────────────────
+  if (isMobileLand) {
     return (
-      <div style={{ display: "flex", gap: 14, height: "100vh", boxSizing: "border-box", alignItems: "stretch", margin: "-1.25rem", padding: "10px 14px" }}>
-        {/* Left: timer only, vertically centred */}
-        <div style={{ flex: "0 0 62%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{
+        position: "fixed", inset: 0, background: C.bg,
+        display: "flex", flexDirection: "column",
+        padding: isPhoneLand ? "8px 14px 6px" : "12px 20px 10px",
+        boxSizing: "border-box", overflow: "hidden", zIndex: 100,
+      }}>
+        {/* Task info row — compact, above timer */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap", flexShrink: 0 }}>
+          <span style={{ fontSize: isPhoneLand ? 12 : 14, fontWeight: 700, color: C.txt }}>{task.title}</span>
+          {chapName && (
+            <span style={{ fontSize: isPhoneLand ? 10 : 11, fontWeight: 600, color: C.mut,
+              background: C.sur2, padding: "1px 8px", borderRadius: 99 }}>{chapName}</span>
+          )}
+          <span style={{ background: p.bg, color: p.c, fontSize: isPhoneLand ? 10 : 11,
+            fontWeight: 700, padding: "1px 8px", borderRadius: 99 }}>{task.priority}</span>
+          {task.dueDate && (
+            <span style={{ fontSize: isPhoneLand ? 10 : 11, fontWeight: 600,
+              color: isOverdue ? C.redL : C.dim }}>Due {task.dueDate}</span>
+          )}
+          {task.actualHours > 0 && (
+            <span style={{ fontSize: isPhoneLand ? 10 : 11, fontWeight: 600,
+              color: C.blueL }}>{task.actualHours}h logged</span>
+          )}
+          {paused && (
+            <span style={{ fontSize: isPhoneLand ? 10 : 11, fontWeight: 700,
+              color: C.ambL, marginLeft: 4 }}>PAUSED</span>
+          )}
+        </div>
+
+        {/* Timer — fills remaining height, clickable */}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
           {timerBlock}
         </div>
-        {/* Right: exit + controls + task info */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 8, overflowY: "auto" }}>
+
+        {/* Quick add — below timer */}
+        <div style={{ flexShrink: 0, marginTop: 8 }}>
+          {quickAdd}
+        </div>
+
+        {/* Bottom bar — back left, end right */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, flexShrink: 0 }}>
           {exitBtn}
-          {controls}
-          {taskInfo}
+          <button onClick={handleEnd}
+            style={{ ...btnP, height: 36, padding: "0 18px", fontSize: 13,
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+            End session
+          </button>
         </div>
       </div>
     );
   }
 
-  // ── Tablet/iPad landscape: big timer top-center, 2-col below ─
-  if (isTabletLand) {
-    return (
-      <div style={{ maxWidth: 960, margin: "0 auto" }}>
-        {exitBtn}
-        <div style={{ margin: "24px 0 28px" }}>
-          {timerBlock}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {taskInfo}
-            {controls}
-          </div>
-          <div>
-            {quickAdd}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Portrait / desktop: single-column layout ─────────────────
+  // ── Portrait / desktop: single-column layout ──────────────────
   return (
     <div style={{ padding: "0.5rem 0" }}>
       {exitBtn}
@@ -391,8 +391,15 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
       <div style={{ marginBottom: 28 }}>
         {timerBlock}
       </div>
-      <div style={{ marginBottom: 28 }}>
-        {controls}
+      <div style={{ marginBottom: 16, textAlign: "center" }}>
+        <span style={{ fontSize: 11, color: C.dim }}>Tap timer to {paused ? "resume" : "pause"}</span>
+      </div>
+      <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}>
+        <button onClick={handleEnd}
+          style={{ ...btnP, minWidth: 140, height: 44, display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: 13 }}>
+          End session
+        </button>
       </div>
       {quickAdd}
     </div>

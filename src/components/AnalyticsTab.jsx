@@ -209,15 +209,20 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
 
   const handleExportPDF = (dark) => {
     setShowExportMenu(false);
-    if (dark) document.documentElement.classList.add("print-dark");
-    window.print();
-    if (dark) setTimeout(() => document.documentElement.classList.remove("print-dark"), 500);
+    setTimeout(() => {
+      if (dark) document.documentElement.classList.add("print-dark");
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        window.print();
+        if (dark) setTimeout(() => document.documentElement.classList.remove("print-dark"), 500);
+      }));
+    }, 80);
   };
 
   const handleExportPNG = async () => {
     setShowExportMenu(false);
     if (!printRef.current) return;
     setExporting(true);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       const canvas = await html2canvas(printRef.current, {
         backgroundColor: C.bg,
@@ -251,38 +256,39 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
             {label}
           </button>
         ))}
-        <div style={{ flex: 1 }} />
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setShowExportMenu(v => !v)}
-            style={{ fontSize: 11, padding: "3px 12px", borderRadius: 6, cursor: "pointer",
-              background: C.sur2, color: C.mut, border: `1px solid ${C.bdr2}` }}>
-            {exporting ? "Exporting…" : "⬇ Export ▾"}
-          </button>
-          {showExportMenu && (
-            <div style={{
-              position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50,
-              background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10,
-              padding: 4, minWidth: 150, boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-            }}>
-              {[
-                { label: "PDF – light background", action: () => handleExportPDF(false) },
-                { label: "PDF – dark background",  action: () => handleExportPDF(true)  },
-                { label: "PNG – dark background",  action: handleExportPNG              },
-              ].map(({ label, action }) => (
-                <button key={label} onClick={action}
-                  style={{ display: "block", width: "100%", textAlign: "left",
-                    fontSize: 12, padding: "7px 12px", borderRadius: 7,
-                    background: "transparent", border: "none", color: C.txt,
-                    cursor: "pointer" }}
-                  onMouseEnter={e => e.currentTarget.style.background = C.sur2}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
+        <div style={{ marginLeft: "auto" }} data-html2canvas-ignore="true">
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              style={{ fontSize: 11, padding: "3px 12px", borderRadius: 6, cursor: "pointer",
+                background: C.sur2, color: C.mut, border: `1px solid ${C.bdr2}`, whiteSpace: "nowrap" }}>
+              {exporting ? "Exporting…" : "Export ▾"}
+            </button>
+            {showExportMenu && (
+              <div style={{
+                position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50,
+                background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10,
+                padding: 4, minWidth: 170, boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+              }}>
+                {[
+                  { label: "PDF – light background", action: () => handleExportPDF(false) },
+                  { label: "PDF – dark background",  action: () => handleExportPDF(true)  },
+                  { label: "PNG – dark background",  action: handleExportPNG              },
+                ].map(({ label, action }) => (
+                  <button key={label} onClick={action}
+                    style={{ display: "block", width: "100%", textAlign: "left",
+                      fontSize: 12, padding: "7px 12px", borderRadius: 7,
+                      background: "transparent", border: "none", color: C.txt,
+                      cursor: "pointer" }}
+                    onMouseEnter={e => e.currentTarget.style.background = C.sur2}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

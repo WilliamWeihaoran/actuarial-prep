@@ -18,6 +18,13 @@ input, select, textarea {
   background: #20232f;
 }
 
+/* Prevent iOS Safari from auto-zooming on input focus */
+@media (max-width: 900px) {
+  input, select, textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
