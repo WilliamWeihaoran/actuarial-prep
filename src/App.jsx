@@ -1,121 +1,220 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState } from "react";
+import { useData } from "./hooks/useData";
+import { C, styles } from "./constants";
+import ManageExams   from "./components/ManageExams";
+import TasksTab      from "./components/TasksTab";
+import TopicsTab     from "./components/TopicsTab";
+import MistakesTab   from "./components/MistakesTab";
+import PracticeTab   from "./components/PracticeTab";
 
-function App() {
-  const [count, setCount] = useState(0)
+const { btn, btnP } = styles;
+const TABS = ["Tasks", "Topics", "Mistakes", "Practice"];
+
+export default function App() {
+  const { data, update, loading, saving, error } = useData();
+  const [activeExamId, setActiveExamId] = useState(null);
+  const [subTab, setSubTab]             = useState("Tasks");
+  const [showManage, setShowManage]     = useState(false);
+
+  // ── Derived state ──────────────────────────────────────────────
+  const visibleExams = data.exams.filter(e => !e.archived);
+
+  // Default to first exam once data loads
+  const examId = activeExamId ?? visibleExams[0]?.id ?? null;
+  const exam   = data.exams.find(e => e.id === examId);
+
+  const examChapters = data.chapters.filter(c => c.examId === examId);
+  const examTasks    = data.tasks.filter(t => t.examId === examId);
+
+  const doneHours  = examTasks.filter(t => t.status === "Done").reduce((s, t) => s + t.hours, 0);
+  const targetHours = exam?.targetHours || 100;
+  const hourPct    = Math.min(100, Math.round(doneHours / targetHours * 100));
+
+  // ── Exam actions ───────────────────────────────────────────────
+  const saveExams = (updated) => {
+    update(d => ({ ...d, exams: updated }));
+    // If active exam was archived or deleted, fall back to first visible
+    if (!updated.find(e => e.id === examId && !e.archived)) {
+      setActiveExamId(updated.find(e => !e.archived)?.id ?? null);
+    }
+    setShowManage(false);
+  };
+
+  const switchExam = (id) => { setActiveExamId(id); setSubTab("Tasks"); setShowManage(false); };
+
+  // ── Chapter actions ────────────────────────────────────────────
+  const addChapter = (chap) =>
+    update(d => ({ ...d, chapters: [...d.chapters, { ...chap, id: crypto.randomUUID(), done: false }] }));
+
+  const editChapter = (id, updates) =>
+    update(d => ({ ...d, chapters: d.chapters.map(c => c.id === id ? { ...c, ...updates } : c) }));
+
+  const deleteChapter = (id) =>
+    update(d => ({
+      ...d,
+      chapters: d.chapters.filter(c => c.id !== id),
+      tasks:    d.tasks.filter(t => t.chapterId !== id), // also delete child tasks
+    }));
+
+  const toggleChapterDone = (id) =>
+    update(d => ({ ...d, chapters: d.chapters.map(c => c.id === id ? { ...c, done: !c.done } : c) }));
+
+  const reorderChapters = (reordered) =>
+    update(d => ({ ...d, chapters: d.chapters.map(c => reordered.find(r => r.id === c.id) || c) }));
+
+  // ── Task actions ───────────────────────────────────────────────
+  const addTask = (task) =>
+    update(d => ({ ...d, tasks: [...d.tasks, { ...task, id: crypto.randomUUID(), examId, status: "Not Started" }] }));
+
+  const cycleTask = (id) =>
+    update(d => ({
+      ...d,
+      tasks: d.tasks.map(t => {
+        if (t.id !== id) return t;
+        const next = t.status === "Not Started" ? "In Progress" : t.status === "In Progress" ? "Done" : "Not Started";
+        return { ...t, status: next };
+      }),
+    }));
+
+  const deleteTask = (id) =>
+    update(d => ({ ...d, tasks: d.tasks.filter(t => t.id !== id) }));
+
+  const saveTask = (id, updates) =>
+    update(d => ({ ...d, tasks: d.tasks.map(t => t.id === id ? { ...t, ...updates } : t) }));
+
+  // ── Mistake actions ────────────────────────────────────────────
+  const addMistake = (mistake) =>
+    update(d => ({ ...d, mistakes: [...d.mistakes, { ...mistake, id: crypto.randomUUID(), resolved: false }] }));
+
+  const toggleMistake = (id) =>
+    update(d => ({ ...d, mistakes: d.mistakes.map(m => m.id === id ? { ...m, resolved: !m.resolved } : m) }));
+
+  const deleteMistake = (id) =>
+    update(d => ({ ...d, mistakes: d.mistakes.filter(m => m.id !== id) }));
+
+  // ── Loading / error states ─────────────────────────────────────
+  if (loading) return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.mut, fontSize: 14 }}>
+      Loading...
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.redL, fontSize: 14, padding: 24, textAlign: "center" }}>
+      Error: {error}
+    </div>
+  );
+
+  if (visibleExams.length === 0) return (
+    <div style={{ background: C.bg, minHeight: "100vh", padding: "1.25rem", fontFamily: "system-ui, sans-serif", color: C.txt }}>
+      <button style={btnP} onClick={() => setShowManage(true)}>+ Add your first exam</button>
+      {showManage && <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />}
+    </div>
+  );
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+    <div style={{ background: C.bg, minHeight: "100vh", padding: "1.25rem", fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
+
+      {/* Exam nav */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, borderBottom: `1px solid ${C.bdr}`, paddingBottom: 10, flexWrap: "wrap" }}>
+        {visibleExams.map(ex => (
+          <button
+            key={ex.id}
+            onClick={() => switchExam(ex.id)}
+            style={{
+              padding: "5px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer",
+              fontWeight:  examId === ex.id ? 500 : 400,
+              background:  examId === ex.id ? C.blueBg : "transparent",
+              color:       examId === ex.id ? C.blueL  : C.mut,
+              border:      examId === ex.id ? `1px solid ${C.blueBd}` : "1px solid transparent",
+            }}
+          >
+            {ex.name}
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        {saving && <span style={{ fontSize: 11, color: C.dim }}>Saving...</span>}
+        <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px" }}>
+          Edit projects
         </button>
-      </section>
+      </div>
 
-      <div className="ticks"></div>
+      {/* Manage exams panel */}
+      {showManage && <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      {/* Hours bar */}
+      <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ fontSize: 12, color: C.mut, minWidth: 190 }}>
+          {exam?.name} hours logged: <strong style={{ color: C.txt }}>{doneHours}</strong> / {targetHours}
+          {exam?.dueDate && <span style={{ color: C.dim }}> · Due {exam.dueDate}</span>}
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+        <div style={{ flex: 1, height: 5, background: C.bdr, borderRadius: 3 }}>
+          <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
         </div>
-      </section>
+        <span style={{ fontSize: 12, fontWeight: 500, minWidth: 34 }}>{hourPct}%</span>
+      </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* Sub-tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, alignItems: "center" }}>
+        {TABS.map(tab => (
+          <button
+            key={tab}
+            onClick={() => setSubTab(tab)}
+            style={{
+              padding: "4px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer",
+              background: subTab === tab ? C.sur  : "transparent",
+              color:      subTab === tab ? C.txt  : C.dim,
+              border:     subTab === tab ? `1px solid ${C.bdr2}` : "1px solid transparent",
+            }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {subTab === "Tasks" && (
+        <TasksTab
+          examTasks={examTasks}
+          chapters={data.chapters}
+          onCycleTask={cycleTask}
+          onDeleteTask={deleteTask}
+          onSaveTask={saveTask}
+        />
+      )}
+      {subTab === "Topics" && (
+        <TopicsTab
+          examId={examId}
+          chapters={data.chapters}
+          tasks={data.tasks}
+          onAddChapter={addChapter}
+          onEditChapter={editChapter}
+          onDeleteChapter={deleteChapter}
+          onDoneToggleChapter={toggleChapterDone}
+          onReorderChapters={reorderChapters}
+          onAddTask={addTask}
+          onCycleTask={cycleTask}
+          onDeleteTask={deleteTask}
+          onSaveTask={saveTask}
+        />
+      )}
+      {subTab === "Mistakes" && (
+        <MistakesTab
+          examId={examId}
+          mistakes={data.mistakes}
+          chapters={data.chapters}
+          onAddMistake={addMistake}
+          onToggleMistake={toggleMistake}
+          onDeleteMistake={deleteMistake}
+        />
+      )}
+      {subTab === "Practice" && (
+        <PracticeTab
+          examId={examId}
+          chapters={data.chapters}
+          onAddMistake={addMistake}
+        />
+      )}
+    </div>
+  );
 }
-
-export default App
