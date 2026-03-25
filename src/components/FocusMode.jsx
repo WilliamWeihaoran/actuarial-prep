@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { C, PRIO, styles } from "../constants";
-import StatusCircle from "./shared/StatusCircle";
 
 const { inp, btn, btnP } = styles;
 
@@ -106,27 +105,27 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   // Layout detection
   const isLandscape  = winW > winH;
   const isPhoneLand  = isLandscape && winH < 500;
-  const isTabletLand = isLandscape && winH >= 500 && winW < 1280;
+  const isTabletLand = isLandscape && winH >= 500 && winW < 1400;
   const isMobileLand = isPhoneLand || isTabletLand;
 
   // ── Log confirmation screen ────────────────────────────────────
   if (showLog) {
-    const logLandscape = isPhoneLand;
+    const logLandscape = isMobileLand;
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: logLandscape ? "100vh" : "80vh", padding: logLandscape ? 0 : "0 8px" }}>
         <div style={{
-          background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 14,
-          padding: logLandscape ? "16px 20px" : 32,
-          maxWidth: logLandscape ? 680 : 420, width: "100%",
-          display: logLandscape ? "flex" : "block", gap: logLandscape ? 24 : undefined, alignItems: logLandscape ? "center" : undefined,
+          background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 16,
+          padding: logLandscape ? "20px 28px" : "36px 40px",
+          maxWidth: logLandscape ? 860 : 560, width: "100%",
+          display: logLandscape ? "flex" : "block", gap: logLandscape ? 32 : undefined, alignItems: logLandscape ? "center" : undefined,
         }}>
           {/* Left: timer + title */}
-          <div style={{ textAlign: "center", flexShrink: 0, marginBottom: logLandscape ? 0 : 16 }}>
-            <div style={{ fontSize: 11, color: C.mut, marginBottom: 6 }}>Focus session ended</div>
-            <div style={{ fontFamily: "monospace", fontSize: logLandscape ? "clamp(32px, 9vh, 52px)" : "clamp(36px, 10vw, 52px)", fontWeight: 700, color: C.txt, letterSpacing: 3 }}>
+          <div style={{ textAlign: "center", flexShrink: 0, marginBottom: logLandscape ? 0 : 20 }}>
+            <div style={{ fontSize: 12, color: C.mut, marginBottom: 8 }}>Focus session ended</div>
+            <div style={{ fontFamily: "monospace", fontSize: logLandscape ? "clamp(36px, 10vh, 64px)" : "clamp(44px, 8vw, 68px)", fontWeight: 700, color: C.txt, letterSpacing: 3 }}>
               {fmt(timer)}
             </div>
-            <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>{task.title}</div>
+            <div style={{ fontSize: 13, color: C.dim, marginTop: 6, fontWeight: 500 }}>{task.title}</div>
           </div>
 
           {/* Right: controls */}
@@ -182,7 +181,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
 
   // ── Timer block ────────────────────────────────────────────────
   const timerFontSize = isMobileLand
-    ? (isPhoneLand ? "clamp(52px, 13vh, 80px)" : "clamp(70px, 14vh, 120px)")
+    ? "clamp(60px, 14vw, 150px)"
     : "clamp(40px, 15vw, 108px)";
 
   const timerBg     = paused ? C.ambBg  : C.sur2;
@@ -235,82 +234,48 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
     </div>
   );
 
-  // ── Task info ─────────────────────────────────────────────────
-  const taskInfo = (
-    <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: "12px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-        <StatusCircle status={task.status} onClick={() => {}} />
-        <div style={{ fontSize: 15, fontWeight: 600, color: C.txt }}>{task.title}</div>
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", paddingLeft: 28 }}>
-        {chapName && <span style={{ fontSize: 12, background: C.sur2, color: C.mut, padding: "2px 10px", borderRadius: 99 }}>{chapName}</span>}
-        <span style={{ background: p.bg, color: p.c, fontSize: 12, padding: "2px 10px", borderRadius: 99 }}>{task.priority}</span>
-        {task.dueDate && <span style={{ fontSize: 12, color: isOverdue ? C.redL : C.dim }}>Due {task.dueDate}</span>}
-        <span style={{ fontSize: 12, color: C.dim }}>{task.hours}h est.</span>
-        {task.actualHours > 0 && <span style={{ fontSize: 12, color: C.blueL }}>{task.actualHours}h logged</span>}
-      </div>
-    </div>
-  );
-
   // ── Quick add section ─────────────────────────────────────────
   const quickAdd = (
     <div style={{ borderTop: isMobileLand ? "none" : `1px solid ${C.bdr}`, paddingTop: isMobileLand ? 0 : 14 }}>
-      <div style={{ fontSize: 12, color: C.mut, marginBottom: 8 }}>Quick add task</div>
       {showAdd ? (
-        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "7fr 3fr", gap: 8, marginBottom: 8 }}>
-            <div>
-              <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Task title</div>
-              <input autoFocus style={{ ...inp, fontSize: 16 }} placeholder="Task title" value={tf.title}
-                onChange={e => setTf({ ...tf, title: e.target.value })}
-                onKeyDown={e => e.key === "Enter" && handleAddTask()} />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Est. hours</div>
-              <input type="number" min={0} step={0.25} style={{ ...inp, fontSize: 16 }} value={tf.hours}
-                onChange={e => setTf({ ...tf, hours: e.target.value })}
-                onBlur={e => { const v = parseFloat(e.target.value); setTf(f => ({ ...f, hours: !isNaN(v) && v > 0 ? String(v) : "1" })); }} />
-            </div>
+        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: isMobileLand ? "8px 10px" : 12, marginBottom: 6 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            <input autoFocus style={{ ...inp, fontSize: 16, flex: 1 }} placeholder="Task title" value={tf.title}
+              onChange={e => setTf({ ...tf, title: e.target.value })}
+              onKeyDown={e => e.key === "Enter" && handleAddTask()} />
+            <input type="number" min={0} step={0.25} style={{ ...inp, fontSize: 16, width: 64 }} placeholder="hrs" value={tf.hours}
+              onChange={e => setTf({ ...tf, hours: e.target.value })}
+              onBlur={e => { const v = parseFloat(e.target.value); setTf(f => ({ ...f, hours: !isNaN(v) && v > 0 ? String(v) : "1" })); }} />
           </div>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Priority</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {PRIO.map(pp => (
-                  <button key={pp.l} onClick={() => setTf(f => ({ ...f, priority: pp.l }))}
-                    style={{ flex: 1, fontSize: 11, fontWeight: 500, padding: "5px 0", borderRadius: 6, cursor: "pointer",
-                      background: tf.priority === pp.l ? pp.bg : "transparent",
-                      color:      tf.priority === pp.l ? pp.c  : C.dim,
-                      border:     `1px solid ${tf.priority === pp.l ? pp.c : C.bdr2}` }}>
-                    {pp.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-              <button style={btnP} onClick={handleAddTask}>Add</button>
-              <button style={btn} onClick={() => setShowAdd(false)}>Cancel</button>
-            </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {PRIO.map(pp => (
+              <button key={pp.l} onClick={() => setTf(f => ({ ...f, priority: pp.l }))}
+                style={{ flex: 1, fontSize: 11, fontWeight: 500, padding: "4px 0", borderRadius: 6, cursor: "pointer",
+                  background: tf.priority === pp.l ? pp.bg : "transparent",
+                  color:      tf.priority === pp.l ? pp.c  : C.dim,
+                  border:     `1px solid ${tf.priority === pp.l ? pp.c : C.bdr2}` }}>
+                {pp.l}
+              </button>
+            ))}
+            <button style={{ ...btnP, padding: "4px 12px", fontSize: 12 }} onClick={handleAddTask}>Add</button>
+            <button style={{ ...btn, padding: "4px 10px", fontSize: 12 }} onClick={() => setShowAdd(false)}>✕</button>
           </div>
         </div>
       ) : (
         <button onClick={() => setShowAdd(true)}
-          style={{ ...btn, fontSize: 12, borderStyle: "dashed", color: C.dim, marginBottom: addedTasks.length > 0 ? 8 : 0 }}>
-          + Add task to this chapter
+          style={{ ...btn, fontSize: 11, padding: "4px 12px", borderStyle: "dashed", color: C.dim, marginBottom: addedTasks.length > 0 ? 6 : 0 }}>
+          + Add task
         </button>
       )}
       {addedTasks.map(t => {
         const pp = PRIO.find(x => x.l === t.priority) || PRIO[1];
         return (
-          <div key={t._id} style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "8px 12px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 16, height: 16, borderRadius: "50%", border: `1.5px solid ${C.bdr2}`, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: C.txt }}>{t.title}</div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2 }}>
-                <span style={{ background: pp.bg, color: pp.c, fontSize: 11, padding: "1px 8px", borderRadius: 99 }}>{t.priority}</span>
-                <span style={{ fontSize: 11, color: C.dim }}>{t.hours}h est.</span>
-                <span style={{ fontSize: 11, color: C.grnL }}>Added</span>
-              </div>
+          <div key={t._id} style={{ display: "flex", alignItems: "center", padding: "3px 0", gap: 8 }}>
+            <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: C.txt, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
+            <div style={{ display: "flex", gap: 5, alignItems: "center", flexShrink: 0 }}>
+              <span style={{ background: pp.bg, color: pp.c, fontSize: 10, padding: "1px 7px", borderRadius: 99 }}>{t.priority}</span>
+              <span style={{ fontSize: 10, color: C.dim }}>{t.hours}h</span>
+              <span style={{ fontSize: 10, color: C.grnL }}>✓</span>
             </div>
           </div>
         );
@@ -335,8 +300,8 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
         padding: isPhoneLand ? "8px 14px 6px" : "12px 20px 10px",
         boxSizing: "border-box", overflow: "hidden", zIndex: 100,
       }}>
-        {/* Task info row — compact, above timer */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap", flexShrink: 0 }}>
+        {/* Task info row — compact, centered, above timer */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12, flexWrap: "wrap", flexShrink: 0 }}>
           <span style={{ fontSize: isPhoneLand ? 12 : 14, fontWeight: 700, color: C.txt }}>{task.title}</span>
           {chapName && (
             <span style={{ fontSize: isPhoneLand ? 10 : 11, fontWeight: 600, color: C.mut,
@@ -354,7 +319,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
           )}
           {paused && (
             <span style={{ fontSize: isPhoneLand ? 10 : 11, fontWeight: 700,
-              color: C.ambL, marginLeft: 4 }}>PAUSED</span>
+              color: C.ambL }}>PAUSED</span>
           )}
         </div>
 
@@ -385,8 +350,15 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   return (
     <div style={{ padding: "0.5rem 0" }}>
       {exitBtn}
-      <div style={{ marginTop: 16, marginBottom: 24 }}>
-        {taskInfo}
+      {/* Compact task summary — same style as landscape, always consistent */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 16, marginBottom: 20, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: C.txt }}>{task.title}</span>
+        {chapName && <span style={{ fontSize: 11, fontWeight: 600, color: C.mut, background: C.sur2, padding: "1px 8px", borderRadius: 99 }}>{chapName}</span>}
+        <span style={{ background: p.bg, color: p.c, fontSize: 11, fontWeight: 700, padding: "1px 8px", borderRadius: 99 }}>{task.priority}</span>
+        {task.dueDate && <span style={{ fontSize: 11, fontWeight: 600, color: isOverdue ? C.redL : C.dim }}>Due {task.dueDate}</span>}
+        {task.hours && <span style={{ fontSize: 11, color: C.dim }}>{task.hours}h est.</span>}
+        {task.actualHours > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: C.blueL }}>{task.actualHours}h logged</span>}
+        {paused && <span style={{ fontSize: 11, fontWeight: 700, color: C.ambL }}>PAUSED</span>}
       </div>
       <div style={{ marginBottom: 28 }}>
         {timerBlock}

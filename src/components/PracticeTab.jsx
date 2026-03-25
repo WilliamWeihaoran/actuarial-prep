@@ -941,35 +941,26 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
               {timerLimit != null && <span style={{ color: timerWarning ? C.ambL : C.dim }}> · {fmt(timerLimit)}</span>}
             </div>
 
-            {/* Timer + Pause in one row — pause button stretches to full timer height */}
-            <div style={{ display: "flex", alignItems: "stretch", gap: 6, marginBottom: isLand ? 4 : 6 }}>
-              <div style={{
-                flex: 1, minWidth: 0,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                background: timerBg, border: `1px solid ${timerBd}`,
-                borderRadius: 10, padding: isLand ? "6px 10px" : "10px 14px",
-                boxShadow: glowShadow, overflow: "hidden",
-                transition: "background 0.3s, border-color 0.3s",
+            {/* Timer — click to pause/resume */}
+            <div onClick={togglePause} style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              background: timerBg, border: `1px solid ${timerBd}`,
+              borderRadius: 10, padding: isLand ? "6px 10px" : "10px 14px",
+              boxShadow: glowShadow, overflow: "hidden", cursor: "pointer",
+              marginBottom: isLand ? 4 : 6,
+              transition: "background 0.3s, border-color 0.3s",
+            }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: dotColor, boxShadow: `0 0 8px ${dotColor}`, transition: "background 0.3s" }} />
+              <span style={{
+                fontFamily: "monospace",
+                fontSize: isLand ? "clamp(20px, 6vw, 34px)" : "clamp(24px, 9vw, 48px)",
+                fontWeight: 700, letterSpacing: "clamp(1px, 0.6vw, 4px)",
+                color: timerCol, whiteSpace: "nowrap", transition: "color 0.3s",
               }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: dotColor, boxShadow: `0 0 8px ${dotColor}`, transition: "background 0.3s" }} />
-                <span style={{
-                  fontFamily: "monospace",
-                  fontSize: isLand ? "clamp(20px, 6vw, 34px)" : "clamp(24px, 9vw, 48px)",
-                  fontWeight: 700, letterSpacing: "clamp(1px, 0.6vw, 4px)",
-                  color: timerCol, whiteSpace: "nowrap", transition: "color 0.3s",
-                }}>
-                  {fmt(timeDisplay)}
-                </span>
-                {/* Paused badge inline — no layout shift */}
-                <span style={{ fontSize: 10, fontWeight: 600, color: C.ambL, visibility: paused ? "visible" : "hidden", flexShrink: 0 }}>PAUSED</span>
-              </div>
-              <button onClick={togglePause} style={{
-                ...btn, flexShrink: 0, padding: "0 14px", fontSize: 18, lineHeight: 1, alignSelf: "stretch",
-                color: paused ? C.ambL : C.mut, borderColor: paused ? C.amb : C.bdr2,
-                transition: "color 0.3s, border-color 0.3s",
-              }}>
-                {paused ? "▶" : "⏸"}
-              </button>
+                {fmt(timeDisplay)}
+              </span>
+              {/* Paused badge inline — no layout shift */}
+              <span style={{ fontSize: 10, fontWeight: 600, color: C.ambL, visibility: paused ? "visible" : "hidden", flexShrink: 0 }}>PAUSED</span>
             </div>
 
             {/* Warning labels — reserved height to avoid jitter */}
@@ -1240,8 +1231,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <button style={btnP} onClick={handleSaveAndFinish}>Save & finish</button>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button style={{ ...btn, color: C.redL, borderColor: C.red }}
             onClick={() => setConfirm({
               title: "Discard session?",
@@ -1252,6 +1242,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             })}>
             Discard
           </button>
+          <button style={btnP} onClick={handleSaveAndFinish}>Save & finish</button>
         </div>
       </div>
     );

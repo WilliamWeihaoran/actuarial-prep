@@ -19,6 +19,7 @@ export default function App() {
   const [showManage, setShowManage]           = useState(false);
   const [focusTask, setFocusTask]             = useState(null);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
+  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem("appZoom") || "1"));
 
   // ── Derived state ──────────────────────────────────────────────
   const visibleExams = data.exams.filter(e => !e.archived);
@@ -116,6 +117,30 @@ export default function App() {
   const deleteMistake = (id) =>
     update(d => ({ ...d, mistakes: d.mistakes.filter(m => m.id !== id) }));
 
+  // ── Zoom ───────────────────────────────────────────────────────
+  useEffect(() => {
+    document.documentElement.style.zoom = zoom;
+    localStorage.setItem("appZoom", zoom);
+  }, [zoom]);
+
+  useEffect(() => {
+    const handleZoomKey = (e) => {
+      if (!e.metaKey && !e.ctrlKey) return;
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        setZoom(z => Math.min(1.5, Math.round((z + 0.1) * 10) / 10));
+      } else if (e.key === "-") {
+        e.preventDefault();
+        setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10));
+      } else if (e.key === "0") {
+        e.preventDefault();
+        setZoom(1);
+      }
+    };
+    document.addEventListener("keydown", handleZoomKey);
+    return () => document.removeEventListener("keydown", handleZoomKey);
+  }, []);
+
   // ── Tab keyboard shortcuts (T/C/M/P/A) ────────────────────────
   useEffect(() => {
     if (focusTask) return;
@@ -191,6 +216,8 @@ const target = TAB_MAP[e.key.toLowerCase()];
         ))}
         <div style={{ flex: 1 }} />
         {saving && <span style={{ fontSize: 11, color: C.dim }}>Saving...</span>}
+        <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A−</button>
+        <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A+</button>
         <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px" }}>
           Edit projects
         </button>
