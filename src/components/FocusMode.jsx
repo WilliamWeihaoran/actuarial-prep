@@ -190,7 +190,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
 
   // ── Timer block ────────────────────────────────────────────────
   const timerFontSize = isMobileLand
-    ? "clamp(80px, 35vh, 220px)"
+    ? "clamp(60px, min(35vh, calc((100vw - 140px) / 5.2)), 220px)"
     : isPhonePort
       ? "clamp(32px, calc((100vw - 60px) / 5.2), 70px)"
       : "clamp(40px, 15vw, 108px)";

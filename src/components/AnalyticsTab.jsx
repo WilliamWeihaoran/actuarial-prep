@@ -296,14 +296,15 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
       {(dueDate || hoursLeft > 0) && (
         <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 12 }}>Exam progress</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10, marginBottom: hasTracking ? 14 : 0 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: hasTracking ? 14 : 0 }}>
             {[
-              daysLeft !== null && { label: daysLeft > 0 ? "Days left" : "Days past", value: Math.abs(daysLeft), color: daysLeft <= 7 ? C.redL : daysLeft <= 30 ? C.ambL : C.grnL },
-              weeksLeft !== null && daysLeft > 0 && { label: "Weeks left", value: Math.round(weeksLeft * 10) / 10, color: C.txt },
               { label: "Hours logged", value: doneHours, color: C.blueL },
               { label: "Hours left",   value: Math.round(hoursLeft * 10) / 10, color: hoursLeft > 0 ? C.ambL : C.grnL },
-              chapTotal > 0 && { label: "Topics done", value: `${chapDone}/${chapTotal}`, color: chapDone === chapTotal ? C.grnL : C.txt },
-            ].filter(Boolean).map(({ label, value, color }) => (
+              { label: "% Done",       value: `${Math.min(100, Math.round(doneHours / targetHours * 100))}%`, color: doneHours >= targetHours ? C.grnL : C.txt },
+              { label: daysLeft !== null && daysLeft <= 0 ? "Days past" : "Days left", value: daysLeft !== null ? Math.abs(daysLeft) : "—", color: daysLeft === null ? C.dim : daysLeft <= 7 ? C.redL : daysLeft <= 30 ? C.ambL : C.grnL },
+              { label: "Weeks left",  value: weeksLeft !== null && daysLeft > 0 ? Math.round(weeksLeft * 10) / 10 : "—", color: weeksLeft !== null && daysLeft > 0 ? C.txt : C.dim },
+              { label: "Topics done", value: chapTotal > 0 ? `${chapDone}/${chapTotal}` : "—", color: chapTotal > 0 && chapDone === chapTotal ? C.grnL : chapTotal > 0 ? C.txt : C.dim },
+            ].map(({ label, value, color }) => (
               <div key={label} style={{ background: C.sur2, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ fontSize: 20, fontWeight: 600, color }}>{value}</div>
                 <div style={{ fontSize: 11, color: C.mut, marginTop: 3 }}>{label}</div>
@@ -339,7 +340,7 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
       )}
 
       {/* ── Summary stat cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10, marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
         {[
           { label: "Sessions",   value: totalSessions,                                        color: C.txt   },
           { label: "Avg score",  value: avgScore !== null ? `${avgScore}%` : "—",             color: avgScore !== null ? scoreColor(avgScore) : C.dim },

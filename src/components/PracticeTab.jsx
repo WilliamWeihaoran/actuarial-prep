@@ -1382,9 +1382,9 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         </div>
 
         {/* Stat cards */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
           {statCards.map(({ label, value, bg, bd, c }) => (
-            <div key={label} style={{ flex: 1, minWidth: 72, background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "14px 16px", textAlign: "center" }}>
+            <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "14px 16px", textAlign: "center" }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: c }}>{value}</div>
               <div style={{ fontSize: 11, color: C.mut, marginTop: 3 }}>{label}</div>
             </div>
@@ -1429,7 +1429,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 4 }}>Avg time per question</div>
               <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>{ts.count} of {d.questionCount} questions tracked</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(rows.length, 3)}, 1fr)`, gap: 8 }}>
                 {rows.map(({ label, value, color, bg, bd }) => (
                   <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
                     <div style={{ fontSize: 18, fontWeight: 700, color }}>{fmtSec(value)}</div>

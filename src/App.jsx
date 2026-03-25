@@ -232,20 +232,20 @@ const target = TAB_MAP[e.key.toLowerCase()];
           </div>
           {/* Inline compact progress */}
           <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, color: C.mut, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 12, color: C.mut, whiteSpace: "nowrap" }}>
               <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours}h
             </span>
-            <div style={{ width: 48, height: 4, background: C.bdr, borderRadius: 2, flexShrink: 0 }}>
-              <div style={{ height: 4, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 2, transition: "width .3s" }} />
+            <div style={{ width: 56, height: 6, background: C.bdr, borderRadius: 3, flexShrink: 0 }}>
+              <div style={{ height: 6, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
             </div>
-            <span style={{ fontSize: 11, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt, whiteSpace: "nowrap" }}>{hourPct}%</span>
-            {exam?.dueDate && <span style={{ fontSize: 10, color: C.dim, whiteSpace: "nowrap" }}>· {exam.dueDate}</span>}
+            <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt, whiteSpace: "nowrap" }}>{hourPct}%</span>
+            {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap" }}>· {exam.dueDate}</span>}
           </div>
           {/* Controls */}
-          {saving && <span style={{ fontSize: 10, color: C.dim, flexShrink: 0 }}>Saving…</span>}
-          <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 10, padding: "2px 6px", flexShrink: 0 }}>A−</button>
-          <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 10, padding: "2px 6px", flexShrink: 0 }}>A+</button>
-          <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 11, padding: "3px 10px", flexShrink: 0 }}>Edit</button>
+          {saving && <span style={{ fontSize: 11, color: C.dim, flexShrink: 0 }}>Saving…</span>}
+          <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 12, padding: "3px 8px", flexShrink: 0 }}>A−</button>
+          <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 12, padding: "3px 8px", flexShrink: 0 }}>A+</button>
+          <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px", flexShrink: 0 }}>Edit</button>
         </div>
       </>) : (<>
         {/* Default: exam nav row */}
