@@ -6,9 +6,10 @@ import TasksTab      from "./components/TasksTab";
 import TopicsTab     from "./components/TopicsTab";
 import MistakesTab   from "./components/MistakesTab";
 import PracticeTab   from "./components/PracticeTab";
+import AnalyticsTab  from "./components/AnalyticsTab";
 
 const { btn, btnP } = styles;
-const TABS = ["Tasks", "Topics", "Mistakes", "Practice"];
+const TABS = ["Tasks", "Topics", "Mistakes", "Practice", "Analytics"];
 
 export default function App() {
   const { data, update, loading, saving, error } = useData();
@@ -26,7 +27,17 @@ export default function App() {
   const examChapters = data.chapters.filter(c => c.examId === examId);
   const examTasks    = data.tasks.filter(t => t.examId === examId);
 
-  const doneHours  = examTasks.filter(t => t.status === "Done").reduce((s, t) => s + t.hours, 0);
+  const practiceHours = (data.sessions || [])
+    .filter(s => s.examId === examId)
+    .reduce((sum, s) => sum + (s.duration || 0) / 3600, 0);
+  // Done tasks: use actual or estimated hours.
+  // Active tasks with logged focus time: count their actualHours too (time already spent).
+  const doneHours  = Math.round((
+    examTasks.reduce((sum, t) => {
+      if (t.status === "Done") return sum + (t.actualHours || t.hours);
+      return sum + (t.actualHours || 0);
+    }, 0) + practiceHours
+  ) * 10) / 10;
   const targetHours = exam?.targetHours || 100;
   const hourPct    = Math.min(100, Math.round(doneHours / targetHours * 100));
 
@@ -82,12 +93,22 @@ export default function App() {
   const saveTask = (id, updates) =>
     update(d => ({ ...d, tasks: d.tasks.map(t => t.id === id ? { ...t, ...updates } : t) }));
 
+  // ── Session actions ────────────────────────────────────────────
+  const addSession = (session) =>
+    update(d => ({ ...d, sessions: [...(d.sessions || []), { ...session, id: crypto.randomUUID() }] }));
+
+  const deleteSession = (id) =>
+    update(d => ({ ...d, sessions: (d.sessions || []).filter(s => s.id !== id) }));
+
   // ── Mistake actions ────────────────────────────────────────────
   const addMistake = (mistake) =>
     update(d => ({ ...d, mistakes: [...d.mistakes, { ...mistake, id: crypto.randomUUID(), resolved: false }] }));
 
   const toggleMistake = (id) =>
     update(d => ({ ...d, mistakes: d.mistakes.map(m => m.id === id ? { ...m, resolved: !m.resolved } : m) }));
+
+  const editMistake = (id, updates) =>
+    update(d => ({ ...d, mistakes: d.mistakes.map(m => m.id === id ? { ...m, ...updates } : m) }));
 
   const deleteMistake = (id) =>
     update(d => ({ ...d, mistakes: d.mistakes.filter(m => m.id !== id) }));
@@ -143,15 +164,15 @@ export default function App() {
       {showManage && <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />}
 
       {/* Hours bar */}
-      <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ fontSize: 12, color: C.mut, minWidth: 190 }}>
-          {exam?.name} hours logged: <strong style={{ color: C.txt }}>{doneHours}</strong> / {targetHours}
-          {exam?.dueDate && <span style={{ color: C.dim }}> · Due {exam.dueDate}</span>}
-        </div>
+      <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ fontSize: 12, color: C.mut, whiteSpace: "nowrap" }}>
+          hours logged: <strong style={{ color: C.txt }}>{doneHours}</strong> / {targetHours}
+        </span>
         <div style={{ flex: 1, height: 5, background: C.bdr, borderRadius: 3 }}>
           <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
         </div>
         <span style={{ fontSize: 12, fontWeight: 500, minWidth: 34 }}>{hourPct}%</span>
+        {exam?.dueDate && <span style={{ fontSize: 12, color: C.dim, whiteSpace: "nowrap" }}>Due {exam.dueDate}</span>}
       </div>
 
       {/* Sub-tabs */}
@@ -176,6 +197,8 @@ export default function App() {
       {subTab === "Tasks" && (
         <TasksTab
           examTasks={examTasks}
+          examChapters={examChapters}
+          onAddTask={addTask}
           chapters={data.chapters}
           onCycleTask={cycleTask}
           onDeleteTask={deleteTask}
@@ -206,13 +229,29 @@ export default function App() {
           onAddMistake={addMistake}
           onToggleMistake={toggleMistake}
           onDeleteMistake={deleteMistake}
+          onEditMistake={editMistake}
         />
       )}
       {subTab === "Practice" && (
         <PracticeTab
           examId={examId}
           chapters={data.chapters}
+          sessions={(data.sessions || []).filter(s => s.examId === examId)}
+          mistakes={data.mistakes}
           onAddMistake={addMistake}
+          onAddSession={addSession}
+          onDeleteSession={deleteSession}
+        />
+      )}
+      {subTab === "Analytics" && (
+        <AnalyticsTab
+          examId={examId}
+          exam={exam}
+          doneHours={doneHours}
+          chapters={data.chapters}
+          sessions={(data.sessions || []).filter(s => s.examId === examId)}
+          mistakes={data.mistakes}
+          tasks={examTasks}
         />
       )}
     </div>

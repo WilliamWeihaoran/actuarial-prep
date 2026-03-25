@@ -1,23 +1,24 @@
 import { useState } from "react";
 import { C, styles } from "../constants";
 import MistakeCard from "./shared/MistakeCard";
+import CustomSelect from "./shared/CustomSelect";
+import DateInput from "./shared/DateInput";
 
 const { inp, btn, btnP } = styles;
 
 export default function MistakesTab({
   examId, mistakes, chapters,
-  onAddMistake, onToggleMistake, onDeleteMistake,
+  onAddMistake, onToggleMistake, onDeleteMistake, onEditMistake,
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const today                 = new Date().toISOString().slice(0, 10);
 
-  // Topic options pulled from this exam's chapters
   const topics     = chapters.filter(c => c.examId === examId).map(c => c.name);
   const [mf, setMf] = useState({ topic: topics[0] || "", description: "", source: "", date: today });
 
-  const examMistakes  = mistakes.filter(m => m.examId === examId);
-  const unresolved    = examMistakes.filter(m => !m.resolved);
-  const resolved      = examMistakes.filter(m => m.resolved);
+  const examMistakes = mistakes.filter(m => m.examId === examId);
+  const unresolved   = examMistakes.filter(m => !m.resolved);
+  const resolved     = examMistakes.filter(m => m.resolved);
 
   const handleAdd = () => {
     if (!mf.description.trim()) return;
@@ -35,9 +36,7 @@ export default function MistakesTab({
             <div>
               <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Topic</div>
               {topics.length > 0 ? (
-                <select style={inp} value={mf.topic} onChange={e => setMf({ ...mf, topic: e.target.value })}>
-                  {topics.map(t => <option key={t}>{t}</option>)}
-                </select>
+                <CustomSelect value={mf.topic} options={topics} onChange={v => setMf({ ...mf, topic: v })} />
               ) : (
                 <input style={inp} placeholder="Topic name" value={mf.topic} onChange={e => setMf({ ...mf, topic: e.target.value })} />
               )}
@@ -45,7 +44,7 @@ export default function MistakesTab({
 
             <div>
               <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Date</div>
-              <input type="date" style={inp} value={mf.date} onChange={e => setMf({ ...mf, date: e.target.value })} />
+              <DateInput value={mf.date} onChange={v => setMf({ ...mf, date: v || today })} block />
             </div>
 
             <div style={{ gridColumn: "1/-1" }}>
@@ -80,28 +79,30 @@ export default function MistakesTab({
         </button>
       )}
 
-      {/* Unresolved mistakes */}
+      {/* Unresolved */}
       {unresolved.map(m => (
         <MistakeCard
           key={m.id}
           m={m}
+          topics={topics}
           onToggle={() => onToggleMistake(m.id)}
           onDelete={() => onDeleteMistake(m.id)}
+          onEdit={onEditMistake ? u => onEditMistake(m.id, u) : undefined}
         />
       ))}
 
-      {/* Resolved mistakes — shown below unresolved */}
+      {/* Resolved */}
       {resolved.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 12, color: C.dim, marginBottom: 8 }}>
-            Resolved ({resolved.length})
-          </div>
+          <div style={{ fontSize: 12, color: C.dim, marginBottom: 8 }}>Resolved ({resolved.length})</div>
           {resolved.map(m => (
             <MistakeCard
               key={m.id}
               m={m}
+              topics={topics}
               onToggle={() => onToggleMistake(m.id)}
               onDelete={() => onDeleteMistake(m.id)}
+              onEdit={onEditMistake ? u => onEditMistake(m.id, u) : undefined}
             />
           ))}
         </div>

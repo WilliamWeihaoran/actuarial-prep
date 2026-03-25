@@ -14,7 +14,9 @@ export async function loadData() {
   const res = await fetch(API, { headers });
   if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
   const json = await res.json();
-  const decoded = JSON.parse(atob(json.content));
+  // atob gives raw bytes as Latin-1; TextDecoder interprets them as UTF-8 correctly
+  const bytes   = Uint8Array.from(atob(json.content.replace(/\n/g, "")), c => c.charCodeAt(0));
+  const decoded = JSON.parse(new TextDecoder().decode(bytes));
   return { data: decoded, sha: json.sha };
 }
 

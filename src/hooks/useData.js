@@ -7,6 +7,7 @@ const DEFAULT = {
   chapters: [],
   tasks: [],
   mistakes: [],
+  sessions: [],
 };
 
 export function useData() {
