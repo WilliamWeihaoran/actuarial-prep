@@ -203,7 +203,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   const timerBlock = (
     <div style={{ textAlign: "center", width: "100%" }} onClick={togglePause}>
       <div style={{
-        display: "flex", alignItems: "center", gap: isMobileLand ? 12 : isPhonePort ? 10 : 24,
+        display: "flex", alignItems: "center", gap: isMobileLand ? 24 : isPhonePort ? 10 : 24,
         background: timerBg, border: `1.5px solid ${timerBd}`,
         borderRadius: isMobileLand ? 16 : 24,
         padding: isMobileLand ? "18px" : isPhonePort ? "12px 16px" : "20px 24px",
@@ -337,7 +337,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
         </div>
 
         {/* Timer — fills remaining height, clickable */}
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, padding: "0 12px" }}>
           {timerBlock}
         </div>
 

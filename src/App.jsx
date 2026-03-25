@@ -21,6 +21,7 @@ export default function App() {
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
   const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem("appZoom") || "1.15"));
   const [winW, setWinW] = useState(() => window.innerWidth);
+  const [winH, setWinH] = useState(() => window.innerHeight);
 
   // ── Derived state ──────────────────────────────────────────────
   const visibleExams = data.exams.filter(e => !e.archived);
@@ -120,7 +121,7 @@ export default function App() {
 
   // ── Window resize ──────────────────────────────────────────────
   useEffect(() => {
-    const h = () => setWinW(window.innerWidth);
+    const h = () => { setWinW(window.innerWidth); setWinH(window.innerHeight); };
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
@@ -184,6 +185,7 @@ const target = TAB_MAP[e.key.toLowerCase()];
   );
 
   const pad = winW < 500 ? "0.5rem 0.75rem" : "1.25rem";
+  const isPhoneLand = winW > winH && winH < 500;
 
   // ── Focus mode: full-screen, hides all nav/chrome ─────────────
   if (focusTask) {
@@ -207,48 +209,88 @@ const target = TAB_MAP[e.key.toLowerCase()];
       {/* Nav chrome hidden when practice session is active/done */}
       {!(subTab === "Practice" && practiceFullscreen) && (<>
 
-      {/* Exam nav */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, borderBottom: `1px solid ${C.bdr}`, paddingBottom: 10, flexWrap: "wrap" }}>
-        {visibleExams.map(ex => (
-          <button
-            key={ex.id}
-            onClick={() => switchExam(ex.id)}
-            style={{
-              padding: "5px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer",
-              fontWeight:  examId === ex.id ? 500 : 400,
-              background:  examId === ex.id ? C.blueBg : "transparent",
-              color:       examId === ex.id ? C.blueL  : C.mut,
-              border:      examId === ex.id ? `1px solid ${C.blueBd}` : "1px solid transparent",
-            }}
-          >
-            {ex.name}
+      {isPhoneLand ? (<>
+        {/* Phone landscape: single compact row — exam tabs + inline progress + controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, borderBottom: `1px solid ${C.bdr}`, paddingBottom: 6 }}>
+          {/* Exam buttons — scrollable */}
+          <div style={{ display: "flex", gap: 4, overflowX: "auto", flex: 1, scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }}>
+            {visibleExams.map(ex => (
+              <button
+                key={ex.id}
+                onClick={() => switchExam(ex.id)}
+                style={{
+                  flexShrink: 0, padding: "4px 12px", borderRadius: 7, fontSize: 12, cursor: "pointer",
+                  fontWeight:  examId === ex.id ? 500 : 400,
+                  background:  examId === ex.id ? C.blueBg : "transparent",
+                  color:       examId === ex.id ? C.blueL  : C.mut,
+                  border:      examId === ex.id ? `1px solid ${C.blueBd}` : "1px solid transparent",
+                }}
+              >
+                {ex.name}
+              </button>
+            ))}
+          </div>
+          {/* Inline compact progress */}
+          <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, color: C.mut, whiteSpace: "nowrap" }}>
+              <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours}h
+            </span>
+            <div style={{ width: 48, height: 4, background: C.bdr, borderRadius: 2, flexShrink: 0 }}>
+              <div style={{ height: 4, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 2, transition: "width .3s" }} />
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt, whiteSpace: "nowrap" }}>{hourPct}%</span>
+            {exam?.dueDate && <span style={{ fontSize: 10, color: C.dim, whiteSpace: "nowrap" }}>· {exam.dueDate}</span>}
+          </div>
+          {/* Controls */}
+          {saving && <span style={{ fontSize: 10, color: C.dim, flexShrink: 0 }}>Saving…</span>}
+          <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 10, padding: "2px 6px", flexShrink: 0 }}>A−</button>
+          <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 10, padding: "2px 6px", flexShrink: 0 }}>A+</button>
+          <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 11, padding: "3px 10px", flexShrink: 0 }}>Edit</button>
+        </div>
+      </>) : (<>
+        {/* Default: exam nav row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, borderBottom: `1px solid ${C.bdr}`, paddingBottom: 10, flexWrap: "wrap" }}>
+          {visibleExams.map(ex => (
+            <button
+              key={ex.id}
+              onClick={() => switchExam(ex.id)}
+              style={{
+                padding: "5px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer",
+                fontWeight:  examId === ex.id ? 500 : 400,
+                background:  examId === ex.id ? C.blueBg : "transparent",
+                color:       examId === ex.id ? C.blueL  : C.mut,
+                border:      examId === ex.id ? `1px solid ${C.blueBd}` : "1px solid transparent",
+              }}
+            >
+              {ex.name}
+            </button>
+          ))}
+          <div style={{ flex: 1 }} />
+          {saving && <span style={{ fontSize: 11, color: C.dim }}>Saving...</span>}
+          <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A−</button>
+          <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A+</button>
+          <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px" }}>
+            Edit projects
           </button>
-        ))}
-        <div style={{ flex: 1 }} />
-        {saving && <span style={{ fontSize: 11, color: C.dim }}>Saving...</span>}
-        <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A−</button>
-        <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A+</button>
-        <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px" }}>
-          Edit projects
-        </button>
-      </div>
+        </div>
+
+        {/* Hours bar */}
+        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "8px 14px", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+            <span style={{ fontSize: 12, color: C.mut }}>
+              <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours} hrs
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt }}>{hourPct}%</span>
+            {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {exam.dueDate}</span>}
+          </div>
+          <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
+            <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
+          </div>
+        </div>
+      </>)}
 
       {/* Manage exams panel */}
       {showManage && <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />}
-
-      {/* Hours bar */}
-      <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "8px 14px", marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-          <span style={{ fontSize: 12, color: C.mut }}>
-            <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours} hrs
-          </span>
-          <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt }}>{hourPct}%</span>
-          {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {exam.dueDate}</span>}
-        </div>
-        <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
-          <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
-        </div>
-      </div>
 
       {/* Sub-tabs — horizontally scrollable on narrow screens */}
       <div style={{ display: "flex", gap: 4, marginBottom: 12, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
