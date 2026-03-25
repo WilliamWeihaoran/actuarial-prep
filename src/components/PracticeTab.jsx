@@ -1,9 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { C, styles } from "../constants";
 import CustomSelect from "./shared/CustomSelect";
+import ConfirmDialog from "./shared/ConfirmDialog";
 
 const { inp, btn, btnP } = styles;
 const CHOICES = ["A", "B", "C", "D", "E"];
+
+const TIMER_OPTIONS = [
+  { label: "15 min", minutes: 15  },
+  { label: "30 min", minutes: 30  },
+  { label: "45 min", minutes: 45  },
+  { label: "1 hr",   minutes: 60  },
+  { label: "2 hr",   minutes: 120 },
+  { label: "3 hr",   minutes: 180 },
+];
 
 const fmt = (s) => {
   const h  = Math.floor(s / 3600);
@@ -26,7 +36,7 @@ const miniColor = (v) => {
 };
 
 // Mistake logging card inside review — click card body to expand details
-const MissedCard = ({ idx, d, topics, onToggleOpen, onSetDetail, onLog, onRemove }) => (
+const MissedCard = ({ qNum, d, topics, onToggleOpen, onSetDetail, onLog, onRemove }) => (
   <div
     onClick={!d.logged ? onToggleOpen : undefined}
     style={{
@@ -38,8 +48,8 @@ const MissedCard = ({ idx, d, topics, onToggleOpen, onSetDetail, onLog, onRemove
   >
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: d.logged ? C.mut : C.redL }}>Q{idx + 1}</span>
-        {d.flagged && <span style={{ fontSize: 11, color: C.ambL }}>⚑ flagged</span>}
+        <span style={{ fontSize: 13, fontWeight: 600, color: d.logged ? C.mut : C.redL }}>Q{qNum}</span>
+        {d.flagged && <span style={{ fontSize: 11, color: C.redL }}>⚑ flagged</span>}
         {!d.logged && (
           <span style={{ fontSize: 10, color: C.dim }}>{d.open ? "▲" : "▼"}</span>
         )}
@@ -86,7 +96,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   const topics = chapters.filter(c => c.examId === examId).map(c => c.name);
   const today  = new Date().toISOString().slice(0, 10);
 
-  const [cfg, setCfg]         = useState({ name: "", type: "exam", topic: topics[0] || "", count: "30" });
+  const [cfg, setCfg]         = useState({ name: "", type: "exam", topic: topics[0] || "", count: "30", startFrom: "1", timerMode: "untimed", timerDuration: 30 });
   const [mode, setMode]       = useState("setup");
   const [grid, setGrid]       = useState([]);
   const [timer, setTimer]     = useState(0);
@@ -95,11 +105,32 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   const [details, setDetails] = useState({});
   const [showHistory, setShowHistory]     = useState(false);
   const [expandedId, setExpandedId]       = useState(null);
-  const [historyLog, setHistoryLog]       = useState(null);  // { sid, qi, topic, description }
+  const [historyLog, setHistoryLog]       = useState(null);
+  const [summaryData, setSummaryData]     = useState(null);
+  const [confirm, setConfirm]             = useState(null);
+  const [editingName, setEditingName]     = useState(false);
+  const [winWidth, setWinWidth]           = useState(() => window.innerWidth);
   const timerRef    = useRef(null);
   const sessionIdRef = useRef(null);
 
   useEffect(() => () => clearInterval(timerRef.current), []);
+
+  useEffect(() => {
+    const handler = () => setWinWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  const startFromNum  = Math.max(1, parseInt(cfg.startFrom) || 1);
+  const timerLimit    = cfg.timerMode === "timed" ? cfg.timerDuration * 60 : null;
+  const timeDisplay   = timerLimit != null ? Math.max(0, timerLimit - timer) : timer;
+  const timerWarning  = timerLimit != null && timeDisplay < 300;
+  const timerCritical = timerLimit != null && timeDisplay < 60;
+
+  // Auto-finish when countdown hits 0
+  useEffect(() => {
+    if (mode === "active" && timerLimit != null && timer >= timerLimit) finish();
+  }, [timer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Active session helpers ─────────────────────────────────────
   const clickChoice = (i, ch) => setGrid(g => {
@@ -163,6 +194,9 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     setMarks({});
     setDetails({});
     setPaused(false);
+    setSummaryData(null);
+    setEditingName(false);
+    setCfg(c => ({ ...c, name: "", startFrom: "1" }));
     setMode("setup");
   };
 
@@ -177,7 +211,6 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     }
   };
 
-  // Toggle: add if absent, remove if present (and not yet formally logged)
   const toggleLog = (i) => {
     setDetails(prev => {
       if (prev[i] && !prev[i].logged) {
@@ -191,18 +224,19 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           [i]: { topic: cfg.type === "topic" ? cfg.topic : (topics[0] || "General"), description: "", flagged: grid[i]?.flagged || false, open: false, logged: false },
         };
       }
-      return prev; // already logged — leave it
+      return prev;
     });
   };
 
   const logMistake = (i) => {
     const d = details[i];
     const sessionName = cfg.name.trim() || `Practice - ${today}`;
+    const qDisp = startFromNum + i;
     onAddMistake({
       examId,
       topic:        d.topic,
-      description:  d.description.trim() || `Q${i + 1} missed in practice session`,
-      source:       `Q${i + 1} · ${sessionName}`,
+      description:  d.description.trim() || `Q${qDisp} missed in practice session`,
+      source:       `Q${qDisp} · ${sessionName}`,
       date:         today,
       sessionId:    sessionIdRef.current,
       questionIdx:  i,
@@ -217,12 +251,10 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     const correctCount = Object.values(marks).filter(v => v === true).length;
     const wrongCount   = Object.values(marks).filter(v => v === false).length;
     const score        = grid.length ? Math.round(correctCount / grid.length * 100) : 0;
-    onAddSession({
-      id:            sessionIdRef.current || crypto.randomUUID(),
-      examId,
-      name:          cfg.name.trim() || `${cfg.type === "topic" ? cfg.topic : "Exam"} - ${today}`,
-      type:          cfg.type,
-      topic:         cfg.topic,
+    const sessionName  = cfg.name.trim() || `${cfg.type === "topic" ? cfg.topic : "Exam"} - ${today}`;
+
+    const summary = {
+      name:          sessionName,
       date:          today,
       duration:      timer,
       questionCount: grid.length,
@@ -230,13 +262,59 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
       wrong:         wrongCount,
       skipped:       grid.length - correctCount - wrongCount,
       score,
+      flagged:       grid.filter(q => q.flagged).length,
+      logged:        Object.values(details).filter(d => d.logged).length,
+    };
+
+    onAddSession({
+      id:            sessionIdRef.current || crypto.randomUUID(),
+      examId,
+      name:          sessionName,
+      type:          cfg.type,
+      topic:         cfg.topic,
+      date:          today,
+      duration:      timer,
+      questionCount: grid.length,
+      startFrom:     startFromNum,
+      correct:       correctCount,
+      wrong:         wrongCount,
+      skipped:       grid.length - correctCount - wrongCount,
+      score,
       grid:          grid.map((q, i) => ({ ...q, correct: marks[i] ?? null })),
     });
-    reset();
+
+    setSummaryData(summary);
+    clearInterval(timerRef.current);
+    setGrid([]);
+    setMarks({});
+    setDetails({});
+    setPaused(false);
+    setEditingName(false);
+    setMode("summary");
+  };
+
+  // Check readiness before save & finish
+  const handleSaveAndFinish = () => {
+    const totalMarked   = Object.values(marks).filter(v => v !== null).length;
+    const unloggedCount = Object.values(details).filter(d => !d.logged).length;
+    const unmarkedCount = grid.length - totalMarked;
+
+    const issues = [];
+    if (unmarkedCount > 0) issues.push(`${unmarkedCount} question${unmarkedCount > 1 ? "s" : ""} not yet graded`);
+    if (unloggedCount > 0) issues.push(`${unloggedCount} mistake${unloggedCount > 1 ? "s" : ""} not yet logged`);
+
+    if (issues.length > 0) {
+      setConfirm({
+        title: "Save anyway?",
+        message: `${issues.join(" and ")}. You can still save, but you may want to finish first.`,
+        onConfirm: () => { setConfirm(null); saveAndFinish(); },
+      });
+    } else {
+      saveAndFinish();
+    }
   };
 
   // ── History helpers ────────────────────────────────────────────
-  // Find an already-logged mistake for a given session + question
   const findLoggedMistake = (sid, qi) =>
     mistakes.find(m => m.sessionId === sid && m.questionIdx === qi);
 
@@ -265,47 +343,153 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   // ── Setup ──────────────────────────────────────────────────────
   if (mode === "setup") return (
     <div style={{ padding: "1rem 0" }}>
-      <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 20, marginBottom: 12 }}>
-        <div style={{ fontSize: 15, fontWeight: 500, color: C.txt, marginBottom: 16 }}>Set up practice session</div>
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title}
+        message={confirm?.message}
+        confirmLabel="Delete"
+        onConfirm={confirm?.onConfirm}
+        onCancel={() => setConfirm(null)}
+      />
 
-        {/* Name + question count in one row */}
-        <div style={{ display: "grid", gridTemplateColumns: "7fr 3fr", gap: 10, marginBottom: 14 }}>
-          <div>
-            <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Session name <span style={{ color: C.dim }}>(optional)</span></div>
-            <input style={inp} placeholder="e.g. Mock exam 3" value={cfg.name} onChange={e => setCfg({ ...cfg, name: e.target.value })} />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Questions <span style={{ color: C.dim }}>(max 100)</span></div>
-            <input type="number" style={inp} value={cfg.count}
-              onChange={e => setCfg({ ...cfg, count: e.target.value })}
-              onBlur={() => {
-                const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30));
-                setCfg(c => ({ ...c, count: String(n) }));
-              }}
-            />
-          </div>
+      {/* ── Setup card ── */}
+      <div style={{
+        background: C.sur, borderRadius: 14,
+        border: `1px solid ${C.bdr}`,
+        borderTop: `3px solid ${C.blue}`,
+        overflow: "hidden", marginBottom: 14,
+      }}>
+        {/* Card header */}
+        <div style={{ padding: "16px 18px 0", marginBottom: 18 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: C.txt }}>New session</div>
+          <div style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>Configure and start a practice round</div>
         </div>
 
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: C.mut, marginBottom: 6 }}>Session type</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {[["exam", "Exam"], ["topic", "By topic"]].map(([val, label]) => (
-              <button key={val} onClick={() => setCfg({ ...cfg, type: val })}
-                style={{ ...btn, flex: 1, background: cfg.type === val ? C.sur2 : "transparent", color: cfg.type === val ? C.txt : C.mut, borderColor: C.bdr2, fontWeight: cfg.type === val ? 600 : 400 }}>
-                {label}
-              </button>
-            ))}
+        <div style={{ padding: "0 18px 18px", display: "flex", flexDirection: "column", gap: 18 }}>
+
+          {/* Session name — full width */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Session name</div>
+            <input style={inp} placeholder="e.g. Mock exam 3  (optional)" value={cfg.name}
+              onChange={e => setCfg({ ...cfg, name: e.target.value })} />
           </div>
+
+          {/* Questions + Starting # — equal halves */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Questions</div>
+              <input type="number" style={inp} value={cfg.count}
+                onChange={e => setCfg({ ...cfg, count: e.target.value })}
+                onBlur={() => {
+                  const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30));
+                  setCfg(c => ({ ...c, count: String(n) }));
+                }}
+              />
+              <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>max 100</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Starting #</div>
+              <input type="number" style={inp} value={cfg.startFrom}
+                onChange={e => setCfg({ ...cfg, startFrom: e.target.value })}
+                onBlur={() => {
+                  const n = Math.max(1, parseInt(cfg.startFrom) || 1);
+                  setCfg(c => ({ ...c, startFrom: String(n) }));
+                }}
+              />
+              <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>first Q number</div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: C.bdr }} />
+
+          {/* Session type */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Type</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[["exam", "Full exam"], ["topic", "By topic"]].map(([val, label]) => {
+                const sel = cfg.type === val;
+                return (
+                  <button key={val} onClick={() => setCfg({ ...cfg, type: val })}
+                    style={{
+                      padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400,
+                      background: sel ? C.blueBg : C.sur2,
+                      color:      sel ? C.blueL  : C.mut,
+                      border:     `1px solid ${sel ? C.blueBd : C.bdr2}`,
+                      cursor: "pointer",
+                    }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Topic picker (conditional) */}
+          {cfg.type === "topic" && topics.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Topic</div>
+              <CustomSelect value={cfg.topic} options={topics} onChange={v => setCfg({ ...cfg, topic: v })} />
+            </div>
+          )}
+
+          {/* Divider */}
+          <div style={{ height: 1, background: C.bdr }} />
+
+          {/* Timer */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Timer</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: cfg.timerMode === "timed" ? 12 : 0 }}>
+              {[["untimed", "Untimed", C.blueBg, C.blueL, C.blueBd], ["timed", "Timed", C.ambBg, C.ambL, C.amb]].map(([val, label, sbg, sc, sbd]) => {
+                const sel = cfg.timerMode === val;
+                return (
+                  <button key={val} onClick={() => setCfg({ ...cfg, timerMode: val })}
+                    style={{
+                      padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400,
+                      background: sel ? sbg  : C.sur2,
+                      color:      sel ? sc   : C.mut,
+                      border:     `1px solid ${sel ? sbd : C.bdr2}`,
+                      cursor: "pointer",
+                    }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {cfg.timerMode === "timed" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                {TIMER_OPTIONS.map(({ label, minutes }) => {
+                  const sel = cfg.timerDuration === minutes;
+                  return (
+                    <button key={minutes} onClick={() => setCfg({ ...cfg, timerDuration: minutes })}
+                      style={{
+                        padding: "9px 0", borderRadius: 9, fontSize: 12, fontWeight: sel ? 600 : 400,
+                        background: sel ? C.ambBg : C.sur2,
+                        color:      sel ? C.ambL  : C.mut,
+                        border:     `1px solid ${sel ? C.amb : C.bdr2}`,
+                        cursor: "pointer",
+                      }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Start button */}
+          <button
+            onClick={startSession}
+            style={{
+              width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 700,
+              background: C.grnBg, border: `1px solid ${C.grn}`, color: C.grnL,
+              borderRadius: 10, cursor: "pointer", letterSpacing: "0.02em",
+            }}
+          >
+            Start session
+          </button>
         </div>
-
-        {cfg.type === "topic" && topics.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: C.mut, marginBottom: 6 }}>Topic</div>
-            <CustomSelect value={cfg.topic} options={topics} onChange={v => setCfg({ ...cfg, topic: v })} />
-          </div>
-        )}
-
-        <button style={{ ...btnP, width: "100%", padding: "10px 0", fontSize: 14 }} onClick={startSession}>Start session</button>
       </div>
 
       <button onClick={() => setShowHistory(h => !h)}
@@ -322,6 +506,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
               const expanded     = expandedId === s.id;
               const scoreColor   = s.score >= 70 ? C.grnL : s.score >= 50 ? C.ambL : C.redL;
               const sCols        = (s.questionCount || 0) <= 35 ? 5 : 10;
+              const sStart       = s.startFrom || 1;
               const missedInSess = (s.grid || []).map((v, i) => {
                 const c = typeof v === "number" ? (v === 1 ? true : v === 2 ? false : null) : (v?.correct ?? null);
                 return c === false ? i : -1;
@@ -342,7 +527,14 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                     </div>
                     <span style={{ fontSize: 14, fontWeight: 600, color: scoreColor, minWidth: 38, textAlign: "right" }}>{s.score}%</span>
                     <button
-                      onClick={e => { e.stopPropagation(); if (window.confirm(`Delete session "${s.name}"?`)) onDeleteSession(s.id); }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setConfirm({
+                          title: "Delete session?",
+                          message: `"${s.name}" will be permanently deleted.`,
+                          onConfirm: () => { onDeleteSession(s.id); setConfirm(null); },
+                        });
+                      }}
                       title="Delete session"
                       style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px", flexShrink: 0 }}
                     >×</button>
@@ -362,17 +554,19 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                           {s.grid.map((v, i) => {
                             const { bg, col, bd } = miniColor(v);
                             const ch = typeof v === "object" ? v.choice : null;
+                            const qNum = sStart + i;
                             return (
-                              <div key={i} title={ch ? `Q${i+1}: ${ch}` : `Q${i+1}`}
-                                style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 6, color: col, fontSize: 10, fontWeight: 600, padding: "4px 2px", textAlign: "center" }}>
-                                {ch || (i + 1)}
+                              <div key={i}
+                                style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 6, color: col, padding: "5px 2px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                <span style={{ fontSize: 8, opacity: 0.65, lineHeight: 1 }}>Q{qNum}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>{ch || "—"}</span>
                               </div>
                             );
                           })}
                         </div>
                       )}
 
-                      {/* Clickable missed Q# pills */}
+                      {/* Missed Q# pills */}
                       {missedInSess.length > 0 && (
                         <div style={{ marginBottom: flaggedInSess.length > 0 ? 8 : 0 }}>
                           <div style={{ fontSize: 11, color: C.mut, marginBottom: 6 }}>Missed — click to log:</div>
@@ -383,7 +577,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                               return (
                                 <button key={qi}
                                   onClick={() => {
-                                    if (existing) return; // already logged — pill is just informational
+                                    if (existing) return;
                                     setHistoryLog(isOpen ? null : { sid: s.id, qi, topic: topics[0] || "", description: "" });
                                   }}
                                   style={{
@@ -394,7 +588,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                                     cursor: existing ? "default" : "pointer",
                                     outline: isOpen ? `2px solid ${C.redL}` : "none", outlineOffset: 1,
                                   }}>
-                                  {existing ? `✓ Q${qi+1}` : `Q${qi+1}`}
+                                  {existing ? `✓ Q${sStart + qi}` : `Q${sStart + qi}`}
                                 </button>
                               );
                             })}
@@ -402,7 +596,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                         </div>
                       )}
 
-                      {/* Clickable flagged Q# pills */}
+                      {/* Flagged Q# pills */}
                       {flaggedInSess.length > 0 && (
                         <div style={{ marginBottom: 4 }}>
                           <div style={{ fontSize: 11, color: C.mut, marginBottom: 6 }}>Flagged — click to log:</div>
@@ -417,14 +611,14 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                                     setHistoryLog(isOpen ? null : { sid: s.id, qi, topic: topics[0] || "", description: "" });
                                   }}
                                   style={{
-                                    background: existing ? C.grnBg : C.ambBg,
-                                    color:      existing ? C.grnL  : C.ambL,
+                                    background: existing ? C.grnBg : C.redBg,
+                                    color:      existing ? C.grnL  : C.redL,
                                     fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 99,
-                                    border: `1px solid ${existing ? C.grn : isOpen ? C.ambL : C.amb}`,
+                                    border: `1px solid ${existing ? C.grn : isOpen ? C.redL : C.red}`,
                                     cursor: existing ? "default" : "pointer",
-                                    outline: isOpen ? `2px solid ${C.ambL}` : "none", outlineOffset: 1,
+                                    outline: isOpen ? `2px solid ${C.redL}` : "none", outlineOffset: 1,
                                   }}>
-                                  {existing ? `✓ Q${qi+1}` : `⚑ Q${qi+1}`}
+                                  {existing ? `✓ Q${sStart + qi}` : `⚑ Q${sStart + qi}`}
                                 </button>
                               );
                             })}
@@ -432,7 +626,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                         </div>
                       )}
 
-                      {/* Inline log form — or existing mistake details */}
+                      {/* Inline log form */}
                       {historyLog?.sid === s.id && (() => {
                         const existing = findLoggedMistake(s.id, historyLog.qi);
                         if (existing) return (
@@ -488,6 +682,15 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   // ── Active session ─────────────────────────────────────────────
   if (mode === "active") return (
     <div style={{ padding: "1rem 0" }}>
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title}
+        message={confirm?.message}
+        confirmLabel="Cancel session"
+        onConfirm={confirm?.onConfirm}
+        onCancel={() => setConfirm(null)}
+      />
+
       {/* ── STICKY HEADER ── */}
       <div style={{
         position: "sticky", top: 0, zIndex: 20,
@@ -496,26 +699,30 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
       }}>
         <div style={{ fontSize: 12, color: C.mut, marginBottom: 10, textAlign: "center" }}>
           {cfg.name.trim() || (cfg.type === "topic" ? cfg.topic : "Exam")} · {grid.length} questions
+          {timerLimit != null && <span style={{ color: timerWarning ? C.ambL : C.dim }}> · {fmt(timerLimit)} limit</span>}
         </div>
 
         {/* Big timer */}
         <div style={{ textAlign: "center", marginBottom: 12 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 16,
-            background: C.sur2, border: `1px solid ${C.bdr2}`,
+            background: C.sur2,
+            border: `1px solid ${timerCritical ? C.red : timerWarning ? C.amb : C.bdr2}`,
             borderRadius: 16, padding: "16px 36px",
-            boxShadow: paused ? "none" : `0 0 32px rgba(37,99,235,0.18)`,
+            boxShadow: paused ? "none" : timerCritical ? `0 0 32px rgba(153,60,29,0.4)` : timerWarning ? `0 0 32px rgba(133,79,11,0.35)` : `0 0 32px rgba(37,99,235,0.18)`,
           }}>
             <div style={{
               width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-              background: paused ? C.ambL : C.grnL,
-              boxShadow: paused ? "none" : `0 0 12px ${C.grnL}`,
+              background: paused ? C.ambL : timerCritical ? C.redL : timerWarning ? C.ambL : C.grnL,
+              boxShadow: paused ? "none" : `0 0 12px ${timerCritical ? C.redL : timerWarning ? C.ambL : C.grnL}`,
             }} />
-            <span style={{ fontFamily: "monospace", fontSize: 52, fontWeight: 700, color: C.txt, letterSpacing: 5 }}>
-              {fmt(timer)}
+            <span style={{ fontFamily: "monospace", fontSize: 52, fontWeight: 700, letterSpacing: 5, color: timerCritical ? C.redL : timerWarning ? C.ambL : C.txt }}>
+              {fmt(timeDisplay)}
             </span>
           </div>
           {paused && <div style={{ marginTop: 6, fontSize: 12, color: C.ambL }}>Paused</div>}
+          {timerCritical && !paused && <div style={{ marginTop: 6, fontSize: 12, color: C.redL }}>Almost out of time!</div>}
+          {timerWarning && !timerCritical && !paused && <div style={{ marginTop: 6, fontSize: 12, color: C.ambL }}>Under 5 min left</div>}
         </div>
 
         {/* Controls */}
@@ -529,18 +736,22 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           </button>
           <button
             style={{ ...btn, padding: "8px 14px", color: C.redL, borderColor: C.red }}
-            onClick={() => { if (window.confirm("Cancel this session? All progress will be lost.")) reset(); }}
+            onClick={() => setConfirm({
+              title: "Cancel session?",
+              message: "All progress will be lost. This cannot be undone.",
+              onConfirm: () => { setConfirm(null); reset(); },
+            })}
           >
             ✕ Cancel
           </button>
         </div>
 
-        {/* Stats */}
+        {/* Stats — order: confident, unsure, flagged, answered */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
           <span style={{ background: C.grnBg, color: C.grnL, fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>● {confidentCount} confident</span>
           <span style={{ background: C.ambBg, color: C.ambL, fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>● {unsureCount} unsure</span>
+          <span style={{ background: C.redBg, color: C.redL, fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>⚑ {flaggedCount} flagged</span>
           <span style={{ background: C.sur2,  color: C.mut,  fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>{answeredCount}/{grid.length} answered</span>
-          {flaggedCount > 0 && <span style={{ background: C.ambBg, color: C.ambL, fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>⚑ {flaggedCount} flagged</span>}
         </div>
 
         {paused && (
@@ -549,35 +760,37 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           </div>
         )}
 
-        {/* Column header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 5, paddingBottom: 6, marginTop: 12, borderBottom: `1px solid ${C.bdr}` }}>
-          <div style={{ width: 32, flexShrink: 0 }} />
-          <div style={{ width: 38, fontSize: 10, color: C.dim, textAlign: "center", flexShrink: 0 }}>Q#</div>
-          {CHOICES.map(ch => (
-            <div key={ch} style={{ flex: 1, fontSize: 10, color: C.dim, textAlign: "center" }}>{ch}</div>
-          ))}
-        </div>
       </div>
 
       {/* ── SCROLLABLE QUESTION GRID ── */}
-      <div style={{ opacity: paused ? 0.45 : 1, pointerEvents: paused ? "none" : "auto" }}>
-        {grid.map((q, i) => (
+      {(() => {
+        const isWide = winWidth >= 800;
+        const half   = Math.ceil(grid.length / 2);
+        const colHeader = (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, paddingBottom: 4, marginBottom: 2, borderBottom: `1px solid ${C.bdr}` }}>
+            <div style={{ width: 32, flexShrink: 0 }} />
+            <div style={{ width: 38, fontSize: 10, color: C.dim, textAlign: "center", flexShrink: 0 }}>Q#</div>
+            {CHOICES.map(ch => (
+              <div key={ch} style={{ flex: 1, fontSize: 10, color: C.dim, textAlign: "center" }}>{ch}</div>
+            ))}
+          </div>
+        );
+        const renderRow = (q, i) => (
           <div key={i}>
-            {/* Group separator every 5 questions */}
             {i > 0 && i % 5 === 0 && (
               <div style={{ height: 1, background: C.bdr2, margin: "6px 0", opacity: 0.6 }} />
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 0", borderBottom: `1px solid ${C.bdr}` }}>
               <button onClick={() => toggleFlag(i)}
                 style={{ width: 32, height: 36, borderRadius: 6, fontSize: 13, flexShrink: 0,
-                  background: q.flagged ? C.ambBg : "transparent",
-                  color:      q.flagged ? C.ambL  : C.dim,
-                  border:     `1px solid ${q.flagged ? C.amb : C.bdr2}`,
+                  background: q.flagged ? C.redBg : "transparent",
+                  color:      q.flagged ? C.redL  : C.dim,
+                  border:     `1px solid ${q.flagged ? C.red : C.bdr2}`,
                   cursor: "pointer" }}>
                 ⚑
               </button>
               <div style={{ width: 38, height: 36, borderRadius: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, background: C.sur2, color: q.choice ? C.txt : C.dim, border: `1px solid ${C.bdr}` }}>
-                {i + 1}
+                {startFromNum + i}
               </div>
               {CHOICES.map(ch => {
                 const sel = q.choice === ch;
@@ -594,8 +807,26 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
               })}
             </div>
           </div>
-        ))}
-      </div>
+        );
+        return (
+          <div style={{ opacity: paused ? 0.45 : 1, pointerEvents: paused ? "none" : "auto" }}>
+            {isWide ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                <div>
+                  {colHeader}
+                  {grid.slice(0, half).map((q, i) => renderRow(q, i))}
+                </div>
+                <div>
+                  {colHeader}
+                  {grid.slice(half).map((q, i) => renderRow(q, i + half))}
+                </div>
+              </div>
+            ) : (
+              grid.map((q, i) => renderRow(q, i))
+            )}
+          </div>
+        );
+      })()}
 
       <div style={{ marginTop: 10, fontSize: 11, color: C.dim, textAlign: "center" }}>
         Click letter once = confident (green) · twice = unsure (amber) · three times = clear · ⚑ to flag
@@ -605,9 +836,11 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
 
   // ── Review / done screen ───────────────────────────────────────
   if (mode === "done") {
-    const half    = Math.ceil(grid.length / 2);
-    const leftQs  = grid.slice(0, half).map((q, i) => ({ q, i }));
-    const rightQs = grid.slice(half).map((q, i) => ({ q, i: i + half }));
+    const reviewCols  = winWidth >= 900 ? 3 : winWidth >= 500 ? 2 : 1;
+    const colSize     = Math.ceil(grid.length / reviewCols);
+    const colQs       = Array.from({ length: reviewCols }, (_, ci) =>
+      grid.slice(ci * colSize, (ci + 1) * colSize).map((q, j) => ({ q, i: ci * colSize + j }))
+    );
     const totalMarked = markedCorrect + markedWrong;
     const score   = grid.length ? Math.round(markedCorrect / grid.length * 100) : 0;
 
@@ -622,16 +855,15 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           border: `1px solid ${isCorrect ? C.grn : isWrong ? C.red : "transparent"}` }}>
           <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
             background: q.confidence === 1 ? C.grnL : q.confidence === 2 ? C.ambL : C.bdr2 }} />
-          <span style={{ fontSize: 12, fontWeight: 600, minWidth: 24, color: isCorrect ? C.grnL : isWrong ? C.redL : C.txt }}>
-            Q{i + 1}
+          <span style={{ fontSize: 12, fontWeight: 600, minWidth: 32, color: isCorrect ? C.grnL : isWrong ? C.redL : C.txt }}>
+            Q{startFromNum + i}
           </span>
           <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 5px", borderRadius: 4, minWidth: 18, textAlign: "center",
             background: q.choice ? C.blueBg : C.sur2, color: q.choice ? C.blueL : C.dim }}>
             {q.choice || "—"}
           </span>
-          {q.flagged && <span style={{ fontSize: 10, color: C.ambL, flexShrink: 0 }}>⚑</span>}
+          {q.flagged && <span style={{ fontSize: 10, color: C.redL, flexShrink: 0 }}>⚑</span>}
           <div style={{ flex: 1 }} />
-          {/* + / dot button — toggles add/remove from log */}
           <button
             onClick={() => toggleLog(i)}
             title={inLog ? (isLogged ? "Already logged" : "Remove from log") : "Add to log"}
@@ -668,11 +900,47 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
       </div>
     ));
 
+    const reviewGrid = (
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${reviewCols}, 1fr)`, gap: 12, marginBottom: 20 }}>
+        {colQs.map((qs, ci) => <div key={ci}>{renderCol(qs)}</div>)}
+      </div>
+    );
+
     return (
       <div style={{ padding: "1rem 0" }}>
+        <ConfirmDialog
+          open={!!confirm}
+          title={confirm?.title}
+          message={confirm?.message}
+          confirmLabel="Save anyway"
+          danger={false}
+          onConfirm={confirm?.onConfirm}
+          onCancel={() => setConfirm(null)}
+        />
+
+        {/* Header with editable session name */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 500, color: C.txt }}>Review answers</div>
-          <div style={{ fontSize: 12, color: C.dim }}>{fmt(timer)} · {totalMarked}/{grid.length} marked</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editingName ? (
+              <input
+                autoFocus
+                style={{ ...inp, fontSize: 15, fontWeight: 500, padding: "4px 10px" }}
+                value={cfg.name}
+                onChange={e => setCfg(c => ({ ...c, name: e.target.value }))}
+                onBlur={() => setEditingName(false)}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setEditingName(false); }}
+              />
+            ) : (
+              <span
+                onClick={() => setEditingName(true)}
+                title="Click to rename session"
+                style={{ fontSize: 15, fontWeight: 500, color: C.txt, cursor: "text" }}
+              >
+                {cfg.name.trim() || `${cfg.type === "topic" ? cfg.topic : "Exam"} - ${today}`}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: C.dim, flexShrink: 0, marginLeft: 12 }}>{fmt(timer)} · {totalMarked}/{grid.length} marked</div>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
@@ -698,10 +966,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           Use + on any row to add it to the log section below. Click the dot to remove.
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-          <div>{renderCol(leftQs)}</div>
-          <div>{renderCol(rightQs)}</div>
-        </div>
+        {reviewGrid}
 
         {loggableIdxs.length > 0 && (
           <div style={{ marginBottom: 20 }}>
@@ -709,7 +974,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             {loggableIdxs.map(i => details[i] && (
               <MissedCard
                 key={i}
-                idx={i}
+                qNum={startFromNum + i}
                 d={details[i]}
                 topics={topics}
                 onToggleOpen={() => setDetail(i, "open", !details[i]?.open)}
@@ -727,9 +992,78 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         )}
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button style={btnP} onClick={saveAndFinish}>Save & finish</button>
+          <button style={btnP} onClick={handleSaveAndFinish}>Save & finish</button>
           <button style={btn} onClick={reset}>Discard</button>
         </div>
+      </div>
+    );
+  }
+
+  // ── Summary screen ─────────────────────────────────────────────
+  if (mode === "summary" && summaryData) {
+    const d = summaryData;
+    const scoreColor = d.score >= 70 ? C.grnL : d.score >= 50 ? C.ambL : C.redL;
+    const scoreBg    = d.score >= 70 ? C.grnBg : d.score >= 50 ? C.ambBg : C.redBg;
+    const scoreBd    = d.score >= 70 ? C.grn : d.score >= 50 ? C.amb : C.red;
+
+    const statCards = [
+      { label: "Correct",  value: d.correct,  bg: C.grnBg, bd: C.grn,  c: C.grnL },
+      { label: "Wrong",    value: d.wrong,    bg: C.redBg, bd: C.red,  c: C.redL },
+      { label: "Skipped",  value: d.skipped,  bg: C.sur2,  bd: C.bdr2, c: C.mut  },
+      { label: "Score",    value: `${d.score}%`, bg: scoreBg, bd: scoreBd, c: scoreColor },
+    ];
+
+    return (
+      <div style={{ padding: "1rem 0" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 11, color: C.dim, marginBottom: 6 }}>{d.date} · {fmt(d.duration)}</div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: C.txt, marginBottom: 4 }}>{d.name}</div>
+          <div style={{
+            display: "inline-block", fontSize: 42, fontWeight: 700,
+            color: scoreColor, padding: "8px 0",
+          }}>
+            {d.score}%
+          </div>
+          <div style={{ fontSize: 12, color: C.mut }}>{d.questionCount} questions · {fmt(d.duration)}</div>
+        </div>
+
+        {/* Stat cards */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+          {statCards.map(({ label, value, bg, bd, c }) => (
+            <div key={label} style={{ flex: 1, minWidth: 72, background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "14px 16px", textAlign: "center" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: c }}>{value}</div>
+              <div style={{ fontSize: 11, color: C.mut, marginTop: 3 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Accuracy bar */}
+        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: C.mut }}>Accuracy</span>
+            <span style={{ fontSize: 12, color: scoreColor, fontWeight: 600 }}>{d.score}%</span>
+          </div>
+          <div style={{ height: 8, background: C.bdr, borderRadius: 4 }}>
+            <div style={{ height: 8, width: `${d.score}%`, background: scoreColor, borderRadius: 4, transition: "width .4s" }} />
+          </div>
+        </div>
+
+        {/* Additional info */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+          <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Flagged</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: d.flagged > 0 ? C.redL : C.grnL }}>{d.flagged}</div>
+          </div>
+          <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Mistakes logged</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: d.logged > 0 ? C.ambL : C.grnL }}>{d.logged}</div>
+          </div>
+        </div>
+
+        <button style={{ ...btnP, width: "100%", padding: "10px 0", fontSize: 14 }} onClick={reset}>
+          Done
+        </button>
       </div>
     );
   }

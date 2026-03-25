@@ -3,12 +3,11 @@ import { C, styles } from "../../constants";
 const { inp } = styles;
 
 export default function MistakeCard({ m, topics = [], onToggle, onDelete, onEdit }) {
-  const [expanded,    setExpanded]    = useState(false);
-  const [editDesc,    setEditDesc]    = useState(false);
-  const [editSource,  setEditSource]  = useState(false);
-  const [editTopic,   setEditTopic]   = useState(false);
-  const [desc,        setDesc]        = useState(m.description);
-  const [source,      setSource]      = useState(m.source || "");
+  const [editDesc,   setEditDesc]   = useState(false);
+  const [editSource, setEditSource] = useState(false);
+  const [editTopic,  setEditTopic]  = useState(false);
+  const [desc,       setDesc]       = useState(m.description);
+  const [source,     setSource]     = useState(m.source || "");
   const topicRef = useRef(null);
 
   useEffect(() => { setDesc(m.description);    }, [m.description]);
@@ -36,24 +35,17 @@ export default function MistakeCard({ m, topics = [], onToggle, onDelete, onEdit
 
   const isFromSession = !!m.sessionId;
 
-  // Clicking the face expands; buttons stop propagation so they still work independently
-  const handleFaceClick = () => setExpanded(v => !v);
-
   return (
     <div style={{
       background: C.sur, border: `1px solid ${C.bdr}`,
-      borderRadius: 10, marginBottom: 8, overflow: "hidden",
+      borderRadius: 10, marginBottom: 8,
     }}>
-      {/* Card face — click anywhere to expand */}
-      <div
-        onClick={handleFaceClick}
-        style={{ padding: "12px 14px", cursor: "pointer" }}
-      >
+      <div style={{ padding: "12px 14px" }}>
         {/* Header row */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
           {/* Resolved toggle */}
           <button
-            onClick={e => { e.stopPropagation(); onToggle(); }}
+            onClick={onToggle}
             style={{
               width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
               cursor: "pointer", border: `1.5px solid ${m.resolved ? C.grnL : C.bdr2}`,
@@ -69,7 +61,7 @@ export default function MistakeCard({ m, topics = [], onToggle, onDelete, onEdit
           </button>
 
           {/* Inline topic selector */}
-          <div ref={topicRef} style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+          <div ref={topicRef} style={{ position: "relative" }}>
             <button
               onClick={() => onEdit && topics.length > 0 && setEditTopic(v => !v)}
               title={onEdit ? "Click to change topic" : undefined}
@@ -133,19 +125,15 @@ export default function MistakeCard({ m, topics = [], onToggle, onDelete, onEdit
           <span style={{ fontSize: 11, color: C.dim }}>{m.date}</span>
           <div style={{ flex: 1 }} />
 
-          {/* Expand indicator */}
-          <span style={{ fontSize: 10, color: C.dim, padding: "0 4px" }}>
-            {expanded ? "▲" : "▼"}
-          </span>
           <button
-            onClick={e => { e.stopPropagation(); onDelete(); }}
+            onClick={onDelete}
             style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 16, lineHeight: 1 }}
           >
             ×
           </button>
         </div>
 
-        {/* Description — click directly on text to edit; empty area expands the card */}
+        {/* Description + Source — condensed to one content row */}
         {editDesc ? (
           <textarea
             autoFocus
@@ -153,40 +141,24 @@ export default function MistakeCard({ m, topics = [], onToggle, onDelete, onEdit
             value={desc}
             onChange={e => setDesc(e.target.value)}
             onBlur={saveDesc}
-            onClick={e => e.stopPropagation()}
             onKeyDown={e => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveDesc(); }
               if (e.key === "Escape") { setDesc(m.description); setEditDesc(false); }
             }}
           />
         ) : (
-          <div style={{
-            fontSize: 13, color: C.txt, lineHeight: 1.5,
-            display: "-webkit-box", WebkitLineClamp: expanded ? "none" : 3,
-            WebkitBoxOrient: "vertical", overflow: "hidden",
-          }}>
+          <div style={{ fontSize: 13, color: C.txt, lineHeight: 1.6 }}>
             <span
-              onClick={e => { e.stopPropagation(); if (onEdit) setEditDesc(true); }}
+              onClick={() => { if (onEdit) setEditDesc(true); }}
               title={onEdit ? "Click to edit description" : undefined}
               style={{ cursor: onEdit ? "text" : "default" }}
             >
               {m.description}
             </span>
-          </div>
-        )}
-      </div>
-
-      {/* Expanded panel — source only */}
-      {expanded && (
-        <div style={{ borderTop: `1px solid ${C.bdr}`, padding: "10px 14px", paddingLeft: 42 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, color: C.mut, flexShrink: 0 }}>Source:</span>
-            {isFromSession ? (
-              <span style={{ fontSize: 12, color: C.dim, fontStyle: "italic" }}>{m.source}</span>
-            ) : editSource ? (
+            {editSource && !isFromSession ? (
               <input
                 autoFocus
-                style={{ ...inp, padding: "2px 8px", fontSize: 12, flex: 1 }}
+                style={{ ...inp, padding: "2px 8px", fontSize: 12, marginTop: 4 }}
                 value={source}
                 onChange={e => setSource(e.target.value)}
                 onBlur={saveSource}
@@ -196,16 +168,23 @@ export default function MistakeCard({ m, topics = [], onToggle, onDelete, onEdit
                 }}
               />
             ) : (
-              <span
-                onClick={() => onEdit && setEditSource(true)}
-                style={{ fontSize: 12, color: m.source ? C.dim : C.bdr2, cursor: onEdit ? "text" : "default" }}
-              >
-                {m.source || (onEdit ? "click to add..." : "—")}
+              <span style={{ marginLeft: 8 }}>
+                <span style={{ fontSize: 11, color: C.dim }}>· </span>
+                {isFromSession ? (
+                  <span style={{ fontSize: 11, color: C.dim, fontStyle: "italic" }}>{m.source}</span>
+                ) : (
+                  <span
+                    onClick={() => onEdit && setEditSource(true)}
+                    style={{ fontSize: 11, color: m.source ? C.dim : C.bdr2, cursor: onEdit ? "text" : "default" }}
+                  >
+                    {m.source || (onEdit ? "add source" : "—")}
+                  </span>
+                )}
               </span>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

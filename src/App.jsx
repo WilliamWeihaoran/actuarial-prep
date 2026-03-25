@@ -95,7 +95,7 @@ export default function App() {
 
   // ── Session actions ────────────────────────────────────────────
   const addSession = (session) =>
-    update(d => ({ ...d, sessions: [...(d.sessions || []), { ...session, id: crypto.randomUUID() }] }));
+    update(d => ({ ...d, sessions: [...(d.sessions || []), { ...session, id: session.id || crypto.randomUUID() }] }));
 
   const deleteSession = (id) =>
     update(d => ({ ...d, sessions: (d.sessions || []).filter(s => s.id !== id) }));
@@ -164,25 +164,28 @@ export default function App() {
       {showManage && <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />}
 
       {/* Hours bar */}
-      <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 12, color: C.mut, whiteSpace: "nowrap" }}>
-          hours logged: <strong style={{ color: C.txt }}>{doneHours}</strong> / {targetHours}
-        </span>
-        <div style={{ flex: 1, height: 5, background: C.bdr, borderRadius: 3 }}>
+      <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "8px 14px", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+          <span style={{ fontSize: 12, color: C.mut }}>
+            <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours} hrs
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt }}>{hourPct}%</span>
+          {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {exam.dueDate}</span>}
+        </div>
+        <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
           <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
         </div>
-        <span style={{ fontSize: 12, fontWeight: 500, minWidth: 34 }}>{hourPct}%</span>
-        {exam?.dueDate && <span style={{ fontSize: 12, color: C.dim, whiteSpace: "nowrap" }}>Due {exam.dueDate}</span>}
       </div>
 
-      {/* Sub-tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, alignItems: "center" }}>
+      {/* Sub-tabs — horizontally scrollable on narrow screens */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 12, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
         {TABS.map(tab => (
           <button
             key={tab}
             onClick={() => setSubTab(tab)}
             style={{
-              padding: "4px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer",
+              flexShrink: 0,
+              padding: "4px 11px", borderRadius: 8, fontSize: 12, cursor: "pointer",
               background: subTab === tab ? C.sur  : "transparent",
               color:      subTab === tab ? C.txt  : C.dim,
               border:     subTab === tab ? `1px solid ${C.bdr2}` : "1px solid transparent",

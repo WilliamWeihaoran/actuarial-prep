@@ -38,10 +38,11 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
     return { year: d.getFullYear(), month: d.getMonth() };
   };
 
-  const [open,      setOpen]      = useState(false);
-  const [above,     setAbove]     = useState(false);
-  const [viewYear,  setViewYear]  = useState(() => initView().year);
-  const [viewMonth, setViewMonth] = useState(() => initView().month);
+  const [open,       setOpen]      = useState(false);
+  const [above,      setAbove]     = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
+  const [viewYear,   setViewYear]  = useState(() => initView().year);
+  const [viewMonth,  setViewMonth] = useState(() => initView().month);
   const ref = useRef(null);
 
   // Sync calendar view when value changes externally
@@ -93,6 +94,7 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
           if (!open && ref.current) {
             const rect = ref.current.getBoundingClientRect();
             setAbove(window.innerHeight - rect.bottom < 290);
+            setAlignRight(rect.left + 240 > window.innerWidth - 8);
           }
           setOpen(o => !o);
         }}
@@ -126,7 +128,7 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
         <div style={{
           position: "absolute", zIndex: 400,
           ...(above ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }),
-          left: 0,
+          ...(alignRight ? { right: 0 } : { left: 0 }),
           background: C.sur2, border: `1px solid ${C.bdr2}`,
           borderRadius: 12, padding: 14,
           boxShadow: "0 8px 28px rgba(0,0,0,0.55)",
