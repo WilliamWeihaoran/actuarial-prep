@@ -19,7 +19,8 @@ export default function App() {
   const [showManage, setShowManage]           = useState(false);
   const [focusTask, setFocusTask]             = useState(null);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
-  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem("appZoom") || "1"));
+  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem("appZoom") || "1.15"));
+  const [winW, setWinW] = useState(() => window.innerWidth);
 
   // ── Derived state ──────────────────────────────────────────────
   const visibleExams = data.exams.filter(e => !e.archived);
@@ -117,9 +118,17 @@ export default function App() {
   const deleteMistake = (id) =>
     update(d => ({ ...d, mistakes: d.mistakes.filter(m => m.id !== id) }));
 
+  // ── Window resize ──────────────────────────────────────────────
+  useEffect(() => {
+    const h = () => setWinW(window.innerWidth);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+
   // ── Zoom ───────────────────────────────────────────────────────
   useEffect(() => {
-    document.documentElement.style.zoom = zoom;
+    document.documentElement.style.zoom = String(zoom);
+    window.scrollTo(0, 0);
     localStorage.setItem("appZoom", zoom);
   }, [zoom]);
 
@@ -134,7 +143,7 @@ export default function App() {
         setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10));
       } else if (e.key === "0") {
         e.preventDefault();
-        setZoom(1);
+        setZoom(1.15);
       }
     };
     document.addEventListener("keydown", handleZoomKey);
@@ -175,11 +184,13 @@ const target = TAB_MAP[e.key.toLowerCase()];
     </div>
   );
 
+  const pad = winW < 500 ? "0.5rem 0.75rem" : "1.25rem";
+
   // ── Focus mode: full-screen, hides all nav/chrome ─────────────
   if (focusTask) {
     const chap = data.chapters.find(c => c.id === focusTask.chapterId);
     return (
-      <div style={{ background: C.bg, minHeight: "100vh", padding: "1.25rem", fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
+      <div style={{ background: C.bg, minHeight: "100vh", padding: pad, fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
         <FocusMode
           task={focusTask}
           chapName={chap?.name}
@@ -192,7 +203,7 @@ const target = TAB_MAP[e.key.toLowerCase()];
   }
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", padding: "1.25rem", fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
+    <div style={{ background: C.bg, minHeight: "100vh", padding: pad, fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
 
       {/* Nav chrome hidden when practice session is active/done */}
       {!(subTab === "Practice" && practiceFullscreen) && (<>

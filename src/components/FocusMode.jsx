@@ -107,15 +107,16 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   const isPhoneLand  = isLandscape && winH < 500;
   const isTabletLand = isLandscape && winH >= 500 && winW < 1400;
   const isMobileLand = isPhoneLand || isTabletLand;
+  const isPhonePort  = !isLandscape && winW < 500;
 
   // ── Log confirmation screen ────────────────────────────────────
   if (showLog) {
     const logLandscape = isMobileLand;
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: logLandscape ? "100vh" : "80vh", padding: logLandscape ? 0 : "0 8px" }}>
+      <div style={{ position: "fixed", inset: 0, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: logLandscape ? 0 : "0 16px", zIndex: 200, overflow: "hidden" }}>
         <div style={{
           background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 16,
-          padding: logLandscape ? "20px 28px" : "36px 40px",
+          padding: logLandscape ? "20px 28px" : "32px 36px",
           maxWidth: logLandscape ? 860 : 560, width: "100%",
           display: logLandscape ? "flex" : "block", gap: logLandscape ? 32 : undefined, alignItems: logLandscape ? "center" : undefined,
         }}>
@@ -146,30 +147,30 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
             </div>
 
             <div onClick={() => setMarkDone(v => !v)}
-              style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
-                padding: "10px 12px", borderRadius: 10, marginBottom: 12, textAlign: "left",
+              style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
+                padding: "14px 16px", borderRadius: 10, marginBottom: 14, textAlign: "left",
                 background: markDone ? C.grnBg : C.sur2,
                 border: `2px solid ${markDone ? C.grnL : C.bdr2}` }}>
-              <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+              <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0,
                 border: `2px solid ${markDone ? C.grnL : C.bdr2}`,
                 background: markDone ? C.grn : "transparent",
                 display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {markDone && (
-                  <svg width="11" height="11" viewBox="0 0 12 12">
+                  <svg width="13" height="13" viewBox="0 0 12 12">
                     <polyline points="2,6 5,9 10,3" stroke="#c8f0a0" strokeWidth="2.5" fill="none" strokeLinecap="round" />
                   </svg>
                 )}
               </div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: markDone ? C.grnL : C.txt }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: markDone ? C.grnL : C.txt }}>
                 {markDone ? "Will mark as done" : "Mark task as complete"}
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ ...btnP, flex: 1, padding: "10px 0", fontSize: 13 }} onClick={confirmLog}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button style={{ ...btnP, flex: 1, padding: "14px 0", fontSize: 15, fontWeight: 600 }} onClick={confirmLog}>
                 {markDone ? "Log & complete" : "Log & exit"}
               </button>
-              <button style={{ ...btn, padding: "10px 14px", fontSize: 12, color: C.redL }} onClick={onExit}>
+              <button style={{ ...btn, padding: "14px 20px", fontSize: 14, color: C.redL }} onClick={onExit}>
                 Skip
               </button>
             </div>
@@ -182,7 +183,9 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   // ── Timer block ────────────────────────────────────────────────
   const timerFontSize = isMobileLand
     ? "clamp(60px, 14vw, 150px)"
-    : "clamp(40px, 15vw, 108px)";
+    : isPhonePort
+      ? "clamp(80px, 13vh, 160px)"
+      : "clamp(40px, 15vw, 108px)";
 
   const timerBg     = paused ? C.ambBg  : C.sur2;
   const timerBd     = paused ? C.amb    : C.bdr2;
