@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useData } from "./hooks/useData";
 import { C, styles } from "./constants";
 import ManageExams   from "./components/ManageExams";
+import FocusMode     from "./components/FocusMode";
 import TasksTab      from "./components/TasksTab";
 import TopicsTab     from "./components/TopicsTab";
 import MistakesTab   from "./components/MistakesTab";
@@ -16,6 +17,7 @@ export default function App() {
   const [activeExamId, setActiveExamId] = useState(null);
   const [subTab, setSubTab]             = useState("Tasks");
   const [showManage, setShowManage]     = useState(false);
+  const [focusTask, setFocusTask]       = useState(null);
 
   // ── Derived state ──────────────────────────────────────────────
   const visibleExams = data.exams.filter(e => !e.archived);
@@ -113,6 +115,20 @@ export default function App() {
   const deleteMistake = (id) =>
     update(d => ({ ...d, mistakes: d.mistakes.filter(m => m.id !== id) }));
 
+  // ── Tab keyboard shortcuts (T/C/M/P/A) ────────────────────────
+  useEffect(() => {
+    if (focusTask) return;
+    const TAB_MAP = { t: "Tasks", c: "Topics", m: "Mistakes", p: "Practice", a: "Analytics" };
+    const handleKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+const target = TAB_MAP[e.key.toLowerCase()];
+      if (target) { e.preventDefault(); setSubTab(target); }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [focusTask, subTab]);
+
   // ── Loading / error states ─────────────────────────────────────
   if (loading) return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.mut, fontSize: 14 }}>
@@ -132,6 +148,22 @@ export default function App() {
       {showManage && <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />}
     </div>
   );
+
+  // ── Focus mode: full-screen, hides all nav/chrome ─────────────
+  if (focusTask) {
+    const chap = data.chapters.find(c => c.id === focusTask.chapterId);
+    return (
+      <div style={{ background: C.bg, minHeight: "100vh", padding: "1.25rem", fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
+        <FocusMode
+          task={focusTask}
+          chapName={chap?.name}
+          onAddTask={addTask}
+          onSaveTask={saveTask}
+          onExit={() => setFocusTask(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", padding: "1.25rem", fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
@@ -206,6 +238,7 @@ export default function App() {
           onCycleTask={cycleTask}
           onDeleteTask={deleteTask}
           onSaveTask={saveTask}
+          onFocus={setFocusTask}
         />
       )}
       {subTab === "Topics" && (

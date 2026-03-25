@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { C } from "../constants";
 
 const fmtDuration = (s) => {
@@ -37,6 +37,7 @@ function dateOffset(daysAgo) {
 
 export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, sessions, mistakes, tasks = [] }) {
   const [timeFilter, setTimeFilter] = useState("all"); // all | today | week | month
+  const printRef = useRef(null);
 
   const today       = new Date().toISOString().slice(0, 10);
   const cutoff      = filterCutoff(timeFilter);
@@ -144,6 +145,58 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
   const topicRows = Object.entries(byTopic).filter(([, v]) => v.total > 0).sort(([, a], [, b]) => b.total - a.total);
   const maxCount  = topicRows.length > 0 ? topicRows[0][1].total : 1;
 
+  // ── Weakest areas ──────────────────────────────────────────────
+  // For each topic: open mistakes + practice accuracy (if < 70%)
+  const topicScores = {};
+  examChapters.forEach(c => { topicScores[c.name] = { open: 0, sessions: [], name: c.name }; });
+  examMistakes.forEach(m => {
+    const key = m.topic || "Other";
+    if (!topicScores[key]) topicScores[key] = { open: 0, sessions: [], name: key };
+    if (!m.resolved) topicScores[key].open++;
+  });
+  sessions.filter(s => s.type === "topic" && s.topic && s.score != null).forEach(s => {
+    if (!topicScores[s.topic]) topicScores[s.topic] = { open: 0, sessions: [], name: s.topic };
+    topicScores[s.topic].sessions.push(s.score);
+  });
+  const weakestAreas = Object.values(topicScores)
+    .map(t => {
+      const avgAcc = t.sessions.length > 0
+        ? Math.round(t.sessions.reduce((a, b) => a + b, 0) / t.sessions.length)
+        : null;
+      const score = t.open * 2 + (avgAcc != null && avgAcc < 70 ? (70 - avgAcc) : 0);
+      return { ...t, avgAcc, score };
+    })
+    .filter(t => t.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  // ── Avg time per Q trend (sessions with qTimes) ─────────────────
+  const timedSessions = sessions.filter(s => s.qTimes?.some(t => t > 0));
+  const timePerQTrend = timedSessions.slice(-12).map(s => {
+    const secs = s.qTimes.filter(t => t > 0);
+    const avg  = secs.length > 0 ? Math.round(secs.reduce((a, b) => a + b, 0) / secs.length / 1000) : 0;
+    return { name: s.name, avg };
+  });
+  const maxTrendSec = Math.max(...timePerQTrend.map(s => s.avg), 1);
+
+  // ── Most-missed Q# ─────────────────────────────────────────────
+  const missedByQNum = {};
+  sessions.forEach(s => {
+    if (!s.grid || !s.startFrom) return;
+    s.grid.forEach((q, i) => {
+      const correct = typeof q === "object" ? q.correct : (q === 2 ? false : q === 1 ? true : null);
+      if (correct === false) {
+        const qNum = (s.startFrom || 1) + i;
+        missedByQNum[qNum] = (missedByQNum[qNum] || 0) + 1;
+      }
+    });
+  });
+  const mostMissed = Object.entries(missedByQNum)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 15)
+    .map(([qNum, count]) => ({ qNum: parseInt(qNum), count }));
+  const maxMissedCount = mostMissed.length > 0 ? mostMissed[0].count : 1;
+
   // ── Chapter completion ─────────────────────────────────────────
   const chapDone  = examChapters.filter(c => c.done).length;
   const chapTotal = examChapters.length;
@@ -169,10 +222,12 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
   const topicTimeRows = Object.entries(timeByTopic).filter(([, h]) => h > 0).sort(([, a], [, b]) => b - a);
   const maxTopicH = topicTimeRows.length > 0 ? topicTimeRows[0][1] : 1;
 
+  const handleExport = () => window.print();
+
   return (
     <div>
-      {/* Time filter */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, alignItems: "center" }}>
+      {/* Time filter + export */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 11, color: C.dim }}>Period:</span>
         {[["all", "All time"], ["month", "This month"], ["week", "This week"], ["today", "Today"]].map(([val, label]) => (
           <button key={val} onClick={() => setTimeFilter(val)}
@@ -186,6 +241,12 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
             {label}
           </button>
         ))}
+        <div style={{ flex: 1 }} />
+        <button onClick={handleExport}
+          style={{ fontSize: 11, padding: "3px 12px", borderRadius: 6, cursor: "pointer",
+            background: C.sur2, color: C.mut, border: `1px solid ${C.bdr2}` }}>
+          ⬇ Export PDF
+        </button>
       </div>
 
       {/* ── Exam timeline ── */}
@@ -478,6 +539,77 @@ export default function AnalyticsTab({ examId, exam, doneHours = 0, chapters, se
           })
         )}
       </div>
+
+      {/* ── Weakest areas ── */}
+      {weakestAreas.length > 0 && (
+        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 4 }}>Weakest areas</div>
+          <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>Based on open mistakes + practice accuracy below 70%</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+            {weakestAreas.map((t, rank) => (
+              <div key={t.name} style={{ background: C.redBg, border: `1px solid ${C.red}`, borderRadius: 10, padding: "12px 14px", position: "relative" }}>
+                <div style={{ position: "absolute", top: 8, right: 10, fontSize: 18, fontWeight: 700, color: C.red, opacity: 0.3 }}>#{rank + 1}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.redL, marginBottom: 6, paddingRight: 22 }}>{t.name}</div>
+                {t.open > 0 && (
+                  <div style={{ fontSize: 11, color: C.dim, marginBottom: 3 }}>
+                    <span style={{ color: C.redL, fontWeight: 600 }}>{t.open}</span> open mistake{t.open > 1 ? "s" : ""}
+                  </div>
+                )}
+                {t.avgAcc != null && (
+                  <div style={{ fontSize: 11, color: C.dim }}>
+                    Avg accuracy: <span style={{ color: scoreColor(t.avgAcc) }}>{t.avgAcc}%</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Avg time per Q trend ── */}
+      {timePerQTrend.length > 0 && (
+        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 4 }}>Avg time per question (keyboard-tracked)</div>
+          <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>Last {timePerQTrend.length} sessions with per-Q timing · bar = seconds</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "flex-end", height: 80 }}>
+            {timePerQTrend.map((s, i) => {
+              const pct = s.avg / maxTrendSec;
+              const label = s.avg >= 60 ? `${Math.floor(s.avg/60)}m${s.avg%60 > 0 ? `${s.avg%60}s` : ""}` : `${s.avg}s`;
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%" }}>
+                  <div style={{ fontSize: 9, color: C.dim, lineHeight: 1, marginBottom: 2 }}>{label}</div>
+                  <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
+                    <div title={`${s.name}: ${label}/Q`}
+                      style={{ width: "100%", height: `${Math.max(pct * 100, 8)}%`, background: C.blue, borderRadius: "3px 3px 0 0", opacity: 0.8 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 10, color: C.dim, marginTop: 6 }}>x-axis = session order (most recent on right)</div>
+        </div>
+      )}
+
+      {/* ── Most-missed Q# ── */}
+      {mostMissed.length > 0 && (
+        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 12 }}>Most-missed question numbers</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {mostMissed.map(({ qNum, count }) => {
+              const intensity = count / maxMissedCount;
+              const bg = `rgba(153,60,29,${0.15 + intensity * 0.65})`;
+              const bd = `rgba(240,149,117,${0.2 + intensity * 0.6})`;
+              return (
+                <div key={qNum} title={`Q${qNum}: missed ${count}×`}
+                  style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 8, padding: "6px 10px", textAlign: "center", minWidth: 44 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.redL }}>Q{qNum}</div>
+                  <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{count}×</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,8 +20,7 @@ import TaskCard from "./shared/TaskCard";
 import PriorityPicker from "./shared/PriorityPicker";
 import CustomSelect from "./shared/CustomSelect";
 import DateInput from "./shared/DateInput";
-import FocusMode from "./FocusMode";
-
+import ConfirmDialog from "./shared/ConfirmDialog";
 const { inp, btn, btnP } = styles;
 
 const PRIO_ORDER = { High: 0, Medium: 1, Low: 2 };
@@ -39,12 +38,13 @@ function getDueDateGroup(dueDate) {
 const DUE_GROUP_ORDER = ["Overdue / Today", "This week", "Future", "No date"];
 const PRIO_GROUPS     = ["High", "Medium", "Low"];
 
-export default function TasksTab({ examTasks, examChapters, chapters, onAddTask, onCycleTask, onDeleteTask, onSaveTask }) {
-  const [logOpen,   setLogOpen]   = useState(false);
-  const [showAdd,   setShowAdd]   = useState(false);
-  const [groupBy,   setGroupBy]   = useState("none");   // none | topic | priority | dueDate
-  const [sortBy,    setSortBy]    = useState("none");   // none | priority | dueDate
-  const [focusTask, setFocusTask] = useState(null);     // task being focused
+export default function TasksTab({ examTasks, examChapters, chapters, onAddTask, onCycleTask, onDeleteTask, onSaveTask, onFocus }) {
+  const [logOpen,      setLogOpen]      = useState(false);
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [groupBy,      setGroupBy]      = useState("none");   // none | topic | priority | dueDate
+  const [sortBy,       setSortBy]       = useState("none");   // none | priority | dueDate
+  const [selectedId,   setSelectedId]   = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // id to confirm-delete
   const [tf, setTf] = useState({ title: "", priority: "Medium", hours: 1, dueDate: "", chapterId: examChapters[0]?.id || "" });
   const [showHoursMenu, setShowHoursMenu] = useState(false);
   const hoursMenuRef = useRef(null);
@@ -58,6 +58,34 @@ export default function TasksTab({ examTasks, examChapters, chapters, onAddTask,
   const [fadingIds] = useState({});
   const [, forceUpdate] = useState(0);
 
+  // Refs so keyboard handler always sees latest values without re-registering
+  const selectedIdRef   = useRef(null);
+  const examTasksRef    = useRef(examTasks);
+  const cycleRef        = useRef(null);
+  selectedIdRef.current = selectedId;
+  examTasksRef.current  = examTasks;
+
+  useEffect(() => {
+    const h = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "n" || e.key === "N") { e.preventDefault(); setShowAdd(true); return; }
+      const sel = selectedIdRef.current;
+      if (!sel) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const task = examTasksRef.current.find(t => t.id === sel);
+        if (task && cycleRef.current) cycleRef.current(task);
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        setDeleteConfirm(sel);
+      }
+    };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleAdd = () => {
     if (!tf.title.trim() || !tf.chapterId) return;
     onAddTask({ ...tf });
@@ -67,6 +95,7 @@ export default function TasksTab({ examTasks, examChapters, chapters, onAddTask,
   };
 
   const cycleWithFade = (task) => {
+    cycleRef.current = cycleWithFade; // keep ref in sync
     if (task.status === "In Progress") {
       fadingIds[task.id] = true;
       forceUpdate(n => n + 1);
@@ -79,20 +108,6 @@ export default function TasksTab({ examTasks, examChapters, chapters, onAddTask,
       onCycleTask(task.id);
     }
   };
-
-  // Show focus mode overlay
-  if (focusTask) {
-    const chap = chapters.find(c => c.id === focusTask.chapterId);
-    return (
-      <FocusMode
-        task={focusTask}
-        chapName={chap?.name}
-        onAddTask={onAddTask}
-        onSaveTask={onSaveTask}
-        onExit={() => setFocusTask(null)}
-      />
-    );
-  }
 
   const active = examTasks.filter(t => t.status !== "Done");
   const done   = examTasks.filter(t => t.status === "Done");
@@ -141,19 +156,26 @@ export default function TasksTab({ examTasks, examChapters, chapters, onAddTask,
   }
 
   const renderTaskCard = (t) => {
+    const isSelected = selectedId === t.id;
     return (
       <div
         key={t.id}
-        style={{ opacity: fadingIds[t.id] ? 0.2 : 1, transition: fadingIds[t.id] ? "opacity 2s" : "none" }}
+        onClick={() => setSelectedId(id => id === t.id ? null : t.id)}
+        style={{
+          opacity: fadingIds[t.id] ? 0.2 : 1,
+          transition: fadingIds[t.id] ? "opacity 2s" : "none",
+          borderRadius: 10,
+          outline: isSelected ? `2px solid ${C.blueL}` : "none",
+          outlineOffset: 1,
+        }}
       >
         <TaskCard
           task={t}
-          chapName={groupBy === "topic" ? undefined : undefined}
           chapters={examChapters}
           onCycle={() => cycleWithFade(t)}
-          onDelete={() => onDeleteTask(t.id)}
+          onDelete={() => setDeleteConfirm(t.id)}
           onSave={u => onSaveTask(t.id, u)}
-          onFocus={() => setFocusTask(t)}
+          onFocus={() => onFocus?.(t)}
         />
       </div>
     );
@@ -161,6 +183,14 @@ export default function TasksTab({ examTasks, examChapters, chapters, onAddTask,
 
   return (
     <div>
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        title="Delete task?"
+        message="This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => { onDeleteTask(deleteConfirm); setDeleteConfirm(null); setSelectedId(null); }}
+        onCancel={() => setDeleteConfirm(null)}
+      />
       {/* Controls bar */}
       <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
         {/* Group by */}
@@ -331,7 +361,7 @@ export default function TasksTab({ examTasks, examChapters, chapters, onAddTask,
                   task={t}
                   chapName={chap?.name}
                   onCycle={() => onCycleTask(t.id)}
-                  onDelete={() => onDeleteTask(t.id)}
+                  onDelete={() => setDeleteConfirm(t.id)}
                   onSave={u => onSaveTask(t.id, u)}
                 />
               </div>

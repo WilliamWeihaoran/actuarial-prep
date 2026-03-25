@@ -113,6 +113,17 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   const timerRef    = useRef(null);
   const sessionIdRef = useRef(null);
 
+  // ── Keyboard / time-tracking refs ─────────────────────────────
+  const [activeQ, setActiveQ]             = useState(null);
+  const [keyBufDisplay, setKeyBufDisplay] = useState("");
+  const activeQRef    = useRef(null);
+  const pausedRef     = useRef(false);
+  const keyBufRef     = useRef("");
+  const bufTimerRef   = useRef(null);
+  const qTimesRef     = useRef([]);
+  const qTimeStartRef = useRef(null);
+  const sessionCfgRef = useRef({ startFromNum: 1, gridLen: 0 });
+
   useEffect(() => () => clearInterval(timerRef.current), []);
 
   useEffect(() => {
@@ -120,6 +131,17 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
+
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
+
+  const changeActiveQ = (newIdx) => {
+    if (activeQRef.current !== null && qTimeStartRef.current !== null) {
+      qTimesRef.current[activeQRef.current] = (qTimesRef.current[activeQRef.current] || 0) + (Date.now() - qTimeStartRef.current);
+    }
+    activeQRef.current = newIdx;
+    qTimeStartRef.current = (newIdx !== null && !pausedRef.current) ? Date.now() : null;
+    setActiveQ(newIdx);
+  };
 
   const startFromNum  = Math.max(1, parseInt(cfg.startFrom) || 1);
   const timerLimit    = cfg.timerMode === "timed" ? cfg.timerDuration * 60 : null;
@@ -161,6 +183,16 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     setMarks({});
     setDetails({});
     setPaused(false);
+    pausedRef.current = false;
+    // Reset keyboard / time-tracking state
+    clearTimeout(bufTimerRef.current);
+    keyBufRef.current = "";
+    setKeyBufDisplay("");
+    qTimesRef.current = Array.from({ length: n }, () => 0);
+    qTimeStartRef.current = null;
+    activeQRef.current = null;
+    setActiveQ(null);
+    sessionCfgRef.current = { startFromNum: Math.max(1, parseInt(cfg.startFrom) || 1), gridLen: n };
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => setTimer(t => t + 1), 1000);
     setMode("active");
@@ -170,14 +202,31 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     if (paused) {
       timerRef.current = setInterval(() => setTimer(t => t + 1), 1000);
       setPaused(false);
+      pausedRef.current = false;
+      if (activeQRef.current !== null) qTimeStartRef.current = Date.now();
     } else {
+      if (activeQRef.current !== null && qTimeStartRef.current !== null) {
+        qTimesRef.current[activeQRef.current] = (qTimesRef.current[activeQRef.current] || 0) + (Date.now() - qTimeStartRef.current);
+        qTimeStartRef.current = null;
+      }
       clearInterval(timerRef.current);
       setPaused(true);
+      pausedRef.current = true;
     }
   };
 
   const finish = () => {
     clearInterval(timerRef.current);
+    // Stop timing current active question
+    if (activeQRef.current !== null && qTimeStartRef.current !== null) {
+      qTimesRef.current[activeQRef.current] = (qTimesRef.current[activeQRef.current] || 0) + (Date.now() - qTimeStartRef.current);
+      qTimeStartRef.current = null;
+    }
+    activeQRef.current = null;
+    setActiveQ(null);
+    clearTimeout(bufTimerRef.current);
+    keyBufRef.current = "";
+    setKeyBufDisplay("");
     const init = {};
     grid.forEach((q, i) => {
       if (q.flagged) {
@@ -190,6 +239,14 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
 
   const reset = () => {
     clearInterval(timerRef.current);
+    clearTimeout(bufTimerRef.current);
+    keyBufRef.current = "";
+    setKeyBufDisplay("");
+    activeQRef.current = null;
+    setActiveQ(null);
+    qTimesRef.current = [];
+    qTimeStartRef.current = null;
+    pausedRef.current = false;
     setGrid([]);
     setMarks({});
     setDetails({});
@@ -248,10 +305,35 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     setDetails(prev => ({ ...prev, [i]: { ...prev[i], [field]: val } }));
 
   const saveAndFinish = () => {
-    const correctCount = Object.values(marks).filter(v => v === true).length;
-    const wrongCount   = Object.values(marks).filter(v => v === false).length;
-    const score        = grid.length ? Math.round(correctCount / grid.length * 100) : 0;
-    const sessionName  = cfg.name.trim() || `${cfg.type === "topic" ? cfg.topic : "Exam"} - ${today}`;
+    const correctCount  = Object.values(marks).filter(v => v === true).length;
+    const wrongCount    = Object.values(marks).filter(v => v === false).length;
+    const score         = grid.length ? Math.round(correctCount / grid.length * 100) : 0;
+    const sessionName   = cfg.name.trim() || `${cfg.type === "topic" ? cfg.topic : "Exam"} - ${today}`;
+    const gridWithMarks = grid.map((q, i) => ({ ...q, correct: marks[i] ?? null }));
+
+    // ── Time stats (keyboard-tracked questions only) ──────────────
+    const qTimeSec = qTimesRef.current.map(ms => ms / 1000);
+    const timedQs  = qTimeSec.filter(t => t > 0);
+    const avgOf    = arr => arr.length > 0 ? Math.round(arr.reduce((s, t) => s + t, 0) / arr.length) : null;
+    let timeStats  = null;
+    if (timedQs.length > 0) {
+      const byConf   = { confident: [], unsure: [], none: [] };
+      const byResult = { correct: [], wrong: [] };
+      gridWithMarks.forEach((q, i) => {
+        const t = qTimeSec[i]; if (!t) return;
+        byConf[q.confidence === 1 ? "confident" : q.confidence === 2 ? "unsure" : "none"].push(t);
+        if (q.correct === true)  byResult.correct.push(t);
+        if (q.correct === false) byResult.wrong.push(t);
+      });
+      timeStats = {
+        overall:   Math.round(timedQs.reduce((s, t) => s + t, 0) / timedQs.length),
+        confident: avgOf(byConf.confident),
+        unsure:    avgOf(byConf.unsure),
+        correct:   avgOf(byResult.correct),
+        wrong:     avgOf(byResult.wrong),
+        count:     timedQs.length,
+      };
+    }
 
     const summary = {
       name:          sessionName,
@@ -264,6 +346,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
       score,
       flagged:       grid.filter(q => q.flagged).length,
       logged:        Object.values(details).filter(d => d.logged).length,
+      timeStats,
     };
 
     onAddSession({
@@ -280,7 +363,8 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
       wrong:         wrongCount,
       skipped:       grid.length - correctCount - wrongCount,
       score,
-      grid:          grid.map((q, i) => ({ ...q, correct: marks[i] ?? null })),
+      grid:          gridWithMarks,
+      qTimes:        qTimesRef.current.slice(),
     });
 
     setSummaryData(summary);
@@ -330,6 +414,141 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     });
     setHistoryLog(null);
   };
+
+  // ── Keyboard shortcuts (active session only) ───────────────────
+  useEffect(() => {
+    if (mode !== "active") return;
+
+    const flushBuf = () => {
+      clearTimeout(bufTimerRef.current);
+      keyBufRef.current = "";
+      setKeyBufDisplay("");
+    };
+
+    const resolveTarget = () => {
+      if (!keyBufRef.current) return activeQRef.current;
+      const dispNum = parseInt(keyBufRef.current);
+      const idx     = dispNum - sessionCfgRef.current.startFromNum;
+      flushBuf();
+      if (idx >= 0 && idx < sessionCfgRef.current.gridLen) {
+        changeActiveQ(idx);
+        document.getElementById(`q-row-${idx}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        return idx;
+      }
+      return activeQRef.current;
+    };
+
+    const handleKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key;
+
+      // ── Shift+1-5 → A-E (e.g. ! = A, @ = B, # = C, $ = D, % = E) ──
+      const SHIFT_NUM = { "!": "A", "@": "B", "#": "C", "$": "D", "%": "E" };
+      if (SHIFT_NUM[key]) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        const ch2 = SHIFT_NUM[key];
+        const targetQ = resolveTarget();
+        if (targetQ !== null) {
+          setGrid(g => {
+            const n = [...g]; const q = n[targetQ];
+            if (q.choice === ch2) {
+              n[targetQ] = q.confidence === 2
+                ? { ...q, choice: null, confidence: 0 }
+                : { ...q, confidence: 2 };
+            } else {
+              n[targetQ] = { ...q, choice: ch2, confidence: 1 };
+            }
+            return n;
+          });
+        }
+        return;
+      }
+
+      // ── Digits: build question number ──
+      if (key >= "0" && key <= "9") {
+        e.preventDefault(); e.stopImmediatePropagation();
+        keyBufRef.current += key;
+        setKeyBufDisplay(keyBufRef.current);
+        clearTimeout(bufTimerRef.current);
+        const dispNum = parseInt(keyBufRef.current);
+        const idx     = dispNum - sessionCfgRef.current.startFromNum;
+        if (idx >= 0 && idx < sessionCfgRef.current.gridLen) {
+          changeActiveQ(idx);
+          document.getElementById(`q-row-${idx}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+        bufTimerRef.current = setTimeout(flushBuf, 1500);
+        return;
+      }
+
+      // ── A–E: cycle choice/confidence (same letter: green→yellow→clear) ──
+      const ch = key.toUpperCase();
+      if (["A","B","C","D","E"].includes(ch)) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        const targetQ = resolveTarget();
+        if (targetQ !== null) {
+          setGrid(g => {
+            const n = [...g]; const q = n[targetQ];
+            if (q.choice === ch) {
+              n[targetQ] = q.confidence === 2
+                ? { ...q, choice: null, confidence: 0 }
+                : { ...q, confidence: 2 };
+            } else {
+              n[targetQ] = { ...q, choice: ch, confidence: 1 };
+            }
+            return n;
+          });
+        }
+        return;
+      }
+
+      // ── F: flag/unflag ──
+      if (ch === "F") {
+        e.preventDefault(); e.stopImmediatePropagation();
+        const targetQ = resolveTarget();
+        if (targetQ !== null)
+          setGrid(g => { const n = [...g]; n[targetQ] = { ...n[targetQ], flagged: !n[targetQ].flagged }; return n; });
+        return;
+      }
+
+      // ── Enter: advance to next question ──
+      if (key === "Enter") {
+        e.preventDefault(); e.stopImmediatePropagation();
+        const cur = activeQRef.current;
+        if (cur !== null && cur + 1 < sessionCfgRef.current.gridLen) {
+          changeActiveQ(cur + 1);
+          document.getElementById(`q-row-${cur + 1}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+        return;
+      }
+
+      // ── P: toggle pause/resume ──
+      if (key === "p" || key === "P") {
+        e.preventDefault(); e.stopImmediatePropagation();
+        if (!pausedRef.current) {
+          if (activeQRef.current !== null && qTimeStartRef.current !== null) {
+            qTimesRef.current[activeQRef.current] = (qTimesRef.current[activeQRef.current] || 0) + (Date.now() - qTimeStartRef.current);
+            qTimeStartRef.current = null;
+          }
+          clearInterval(timerRef.current);
+          setPaused(true);
+          pausedRef.current = true;
+        } else {
+          timerRef.current = setInterval(() => setTimer(t => t + 1), 1000);
+          setPaused(false);
+          pausedRef.current = false;
+          if (activeQRef.current !== null) qTimeStartRef.current = Date.now();
+        }
+        return;
+      }
+
+      // ── Escape: clear buffer + deselect ──
+      if (key === "Escape") { e.stopImmediatePropagation(); flushBuf(); changeActiveQ(null); }
+    };
+
+    document.addEventListener("keydown", handleKey, true);
+    return () => { document.removeEventListener("keydown", handleKey, true); clearTimeout(bufTimerRef.current); };
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived values ─────────────────────────────────────────────
   const confidentCount = grid.filter(q => q.confidence === 1).length;
@@ -754,6 +973,17 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           <span style={{ background: C.sur2,  color: C.mut,  fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>{answeredCount}/{grid.length}{!compactStats && " answered"}</span>
         </div>
 
+        {/* Key buffer + active Q hint */}
+        {keyBufDisplay ? (
+          <div style={{ textAlign: "center", marginTop: 6, fontSize: 12, color: C.blueL, fontFamily: "monospace", fontWeight: 600 }}>
+            ⌨ Q{keyBufDisplay}…
+          </div>
+        ) : activeQ !== null ? (
+          <div style={{ textAlign: "center", marginTop: 6, fontSize: 11, color: C.blueL }}>
+            Q{startFromNum + activeQ} active · A-E or !@#$% = set/cycle · F = flag · Enter = next
+          </div>
+        ) : null}
+
         {paused && (
           <div style={{ textAlign: "center", marginTop: 8, padding: "5px 14px", fontSize: 12, color: C.ambL, background: C.ambBg, border: `1px solid ${C.amb}`, borderRadius: 8 }}>
             Session paused — choices visible but locked
@@ -774,39 +1004,46 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             ))}
           </div>
         );
-        const renderRow = (q, i) => (
-          <div key={i}>
-            {i > 0 && i % 5 === 0 && (
-              <div style={{ height: 1, background: C.bdr2, margin: "6px 0", opacity: 0.6 }} />
-            )}
-            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 0", borderBottom: `1px solid ${C.bdr}` }}>
-              <button onClick={() => toggleFlag(i)}
-                style={{ width: 32, height: 36, borderRadius: 6, fontSize: 13, flexShrink: 0,
-                  background: q.flagged ? C.redBg : "transparent",
-                  color:      q.flagged ? C.redL  : C.dim,
-                  border:     `1px solid ${q.flagged ? C.red : C.bdr2}`,
-                  cursor: "pointer" }}>
-                ⚑
-              </button>
-              <div style={{ width: 38, height: 36, borderRadius: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, background: C.sur2, color: q.choice ? C.txt : C.dim, border: `1px solid ${C.bdr}` }}>
-                {startFromNum + i}
+        const renderRow = (q, i, localIdx = i) => {
+          const isActive = i === activeQ;
+          return (
+            <div key={i} id={`q-row-${i}`}>
+              {localIdx > 0 && localIdx % 5 === 0 && (
+                <div style={{ height: 2, background: C.bdr2, margin: "10px 0 8px", borderRadius: 1 }} />
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 0", borderBottom: `1px solid ${C.bdr}` }}>
+                <button onClick={() => toggleFlag(i)}
+                  style={{ width: 32, height: 36, borderRadius: 6, fontSize: 13, flexShrink: 0,
+                    background: q.flagged ? C.redBg : "transparent",
+                    color:      q.flagged ? C.redL  : C.dim,
+                    border:     `1px solid ${q.flagged ? C.red : C.bdr2}`,
+                    cursor: "pointer" }}>
+                  ⚑
+                </button>
+                <div style={{ width: 38, height: 36, borderRadius: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600,
+                  background: isActive ? C.blue  : C.sur2,
+                  color:      isActive ? "#fff"  : q.choice ? C.txt : C.dim,
+                  border:     `1px solid ${isActive ? C.blue : C.bdr}`,
+                  boxShadow:  isActive ? `0 0 8px ${C.blue}88` : "none" }}>
+                  {startFromNum + i}
+                </div>
+                {CHOICES.map(ch => {
+                  const sel = q.choice === ch;
+                  const bg  = sel && q.confidence === 1 ? C.grn  : sel && q.confidence === 2 ? C.amb  : C.sur2;
+                  const col = sel && q.confidence === 1 ? C.grnL : sel && q.confidence === 2 ? C.ambL : C.dim;
+                  const bd  = sel && q.confidence === 1 ? C.grnL : sel && q.confidence === 2 ? C.ambL : C.bdr2;
+                  return (
+                    <button key={ch} onClick={() => clickChoice(i, ch)}
+                      style={{ flex: 1, height: 36, borderRadius: 6, fontSize: 12, fontWeight: 700,
+                        background: bg, color: col, border: `1px solid ${bd}`, cursor: "pointer" }}>
+                      {ch}
+                    </button>
+                  );
+                })}
               </div>
-              {CHOICES.map(ch => {
-                const sel = q.choice === ch;
-                const bg  = sel && q.confidence === 1 ? C.grn  : sel && q.confidence === 2 ? C.amb  : C.sur2;
-                const col = sel && q.confidence === 1 ? C.grnL : sel && q.confidence === 2 ? C.ambL : C.dim;
-                const bd  = sel && q.confidence === 1 ? C.grnL : sel && q.confidence === 2 ? C.ambL : C.bdr2;
-                return (
-                  <button key={ch} onClick={() => clickChoice(i, ch)}
-                    style={{ flex: 1, height: 36, borderRadius: 6, fontSize: 12, fontWeight: 700,
-                      background: bg, color: col, border: `1px solid ${bd}`, cursor: "pointer" }}>
-                    {ch}
-                  </button>
-                );
-              })}
             </div>
-          </div>
-        );
+          );
+        };
         return (
           <div style={{ opacity: paused ? 0.45 : 1, pointerEvents: paused ? "none" : "auto" }}>
             {isWide ? (
@@ -817,7 +1054,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                 </div>
                 <div>
                   {colHeader}
-                  {grid.slice(half).map((q, i) => renderRow(q, i + half))}
+                  {grid.slice(half).map((q, i) => renderRow(q, i + half, i))}
                 </div>
               </div>
             ) : (
@@ -827,8 +1064,9 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         );
       })()}
 
-      <div style={{ marginTop: 10, fontSize: 11, color: C.dim, textAlign: "center" }}>
-        Click letter once = confident (green) · twice = unsure (amber) · three times = clear · ⚑ to flag
+      <div style={{ marginTop: 10, fontSize: 11, color: C.dim, textAlign: "center", lineHeight: 1.6 }}>
+        Click letter: once = green · twice = yellow · thrice = clear<br />
+        Keyboard: <span style={{ fontFamily: "monospace" }}>21A</span> = Q21→A · <span style={{ fontFamily: "monospace" }}>AA</span> = yellow · <span style={{ fontFamily: "monospace" }}>F</span> = flag · <span style={{ fontFamily: "monospace" }}>Enter</span> = next · <span style={{ fontFamily: "monospace" }}>P</span>/<span style={{ fontFamily: "monospace" }}>R</span> = pause/resume
       </div>
 
       {/* Finish + Cancel at the bottom */}
@@ -911,7 +1149,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
 
     const renderCol = (qs) => qs.map(({ q, i }, idx) => (
       <div key={i}>
-        {idx > 0 && idx % 5 === 0 && <div style={{ height: 8 }} />}
+        {idx > 0 && idx % 5 === 0 && <div style={{ height: 16 }} />}
         {renderRow(q, i)}
       </div>
     ));
@@ -1076,6 +1314,33 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             <div style={{ fontSize: 18, fontWeight: 600, color: d.logged > 0 ? C.ambL : C.grnL }}>{d.logged}</div>
           </div>
         </div>
+
+        {/* Time per question stats */}
+        {d.timeStats && (() => {
+          const ts = d.timeStats;
+          const fmtSec = (s) => s != null ? (s >= 60 ? `${Math.floor(s/60)}m ${s%60}s` : `${s}s`) : "—";
+          const rows = [
+            { label: "Overall avg",   value: ts.overall,    color: C.blueL,  bg: C.blueBg, bd: C.blueBd },
+            { label: "Confident",     value: ts.confident,  color: C.grnL,   bg: C.grnBg,  bd: C.grn    },
+            { label: "Unsure",        value: ts.unsure,     color: C.ambL,   bg: C.ambBg,  bd: C.amb    },
+            { label: "Correct qs",   value: ts.correct,    color: C.grnL,   bg: C.grnBg,  bd: C.grn    },
+            { label: "Wrong qs",     value: ts.wrong,      color: C.redL,   bg: C.redBg,  bd: C.red    },
+          ].filter(r => r.value != null);
+          return (
+            <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 4 }}>Avg time per question</div>
+              <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>{ts.count} of {d.questionCount} questions tracked</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))", gap: 8 }}>
+                {rows.map(({ label, value, color, bg, bd }) => (
+                  <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color }}>{fmtSec(value)}</div>
+                    <div style={{ fontSize: 10, color: C.mut, marginTop: 3 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         <button style={{ ...btnP, width: "100%", padding: "10px 0", fontSize: 14 }} onClick={reset}>
           Done

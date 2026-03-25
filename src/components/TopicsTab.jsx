@@ -1,7 +1,8 @@
-import { useState, useRef, Fragment } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import { C, styles } from "../constants";
 import ChapterRow from "./shared/ChapterRow";
 import DateInput from "./shared/DateInput";
+import ConfirmDialog from "./shared/ConfirmDialog";
 
 const { inp, btn, btnP } = styles;
 
@@ -14,11 +15,36 @@ export default function TopicsTab({
   onAddTask, onCycleTask, onDeleteTask, onSaveTask,
   onReorderChapters,
 }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [cf, setCf]           = useState({ name: "", dueDate: "" });
-  const [openMap, setOpenMap] = useState(() => ({ ...openMapCache }));
-  const [insertIdx, setInsertIdx] = useState(-1);
+  const [showAdd,       setShowAdd]       = useState(false);
+  const [cf, setCf]                       = useState({ name: "", dueDate: "" });
+  const [openMap, setOpenMap]             = useState(() => ({ ...openMapCache }));
+  const [insertIdx, setInsertIdx]         = useState(-1);
+  const [selectedChapId, setSelectedChapId] = useState(null);
+  const [deleteConfirm,  setDeleteConfirm]  = useState(null);
   const dragChapId = useRef(null);
+
+  const selectedChapIdRef = useRef(null);
+  selectedChapIdRef.current = selectedChapId;
+
+  useEffect(() => {
+    const h = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "n" || e.key === "N") { e.preventDefault(); setShowAdd(true); return; }
+      const sel = selectedChapIdRef.current;
+      if (!sel) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onDoneToggleChapter(sel);
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        setDeleteConfirm(sel);
+      }
+    };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const examChaps = chapters
     .filter(c => c.examId === examId)
@@ -80,6 +106,15 @@ export default function TopicsTab({
 
   return (
     <div>
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        title="Delete topic?"
+        message="This will also delete all tasks under this topic. This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => { onDeleteChapter(deleteConfirm); setDeleteConfirm(null); setSelectedChapId(null); }}
+        onCancel={() => setDeleteConfirm(null)}
+      />
+
       {/* Add topic form */}
       {showAdd && (
         <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: 14, marginBottom: 14 }}>
@@ -144,22 +179,27 @@ export default function TopicsTab({
         {examChaps.map((chap, idx) => (
           <Fragment key={chap.id}>
             {insertIdx === idx && <Separator />}
-            <ChapterRow
-              chap={chap}
-              tasks={tasks.filter(t => t.chapterId === chap.id)}
-              open={openMap[chap.id] !== undefined ? openMap[chap.id] : true}
-              onToggleOpen={() => setChapOpen(chap.id, !(openMap[chap.id] !== false))}
-              onDoneToggle={() => onDoneToggleChapter(chap.id)}
-              onDelete={() => onDeleteChapter(chap.id)}
-              onEdit={u => onEditChapter(chap.id, u)}
-              onAddTask={onAddTask}
-              onCycleTask={onCycleTask}
-              onDeleteTask={onDeleteTask}
-              onSaveTask={onSaveTask}
-              onDragStart={handleDragStart}
-              onDragOver={(target, clientY) => handleDragOver(target, clientY, idx)}
-              onDrop={handleDrop}
-            />
+            <div
+              onClick={() => setSelectedChapId(id => id === chap.id ? null : chap.id)}
+              style={{ borderRadius: 10, outline: selectedChapId === chap.id ? `2px solid ${C.blueL}` : "none", outlineOffset: 1 }}
+            >
+              <ChapterRow
+                chap={chap}
+                tasks={tasks.filter(t => t.chapterId === chap.id)}
+                open={openMap[chap.id] !== undefined ? openMap[chap.id] : true}
+                onToggleOpen={() => setChapOpen(chap.id, !(openMap[chap.id] !== false))}
+                onDoneToggle={() => onDoneToggleChapter(chap.id)}
+                onDelete={() => setDeleteConfirm(chap.id)}
+                onEdit={u => onEditChapter(chap.id, u)}
+                onAddTask={onAddTask}
+                onCycleTask={onCycleTask}
+                onDeleteTask={onDeleteTask}
+                onSaveTask={onSaveTask}
+                onDragStart={handleDragStart}
+                onDragOver={(target, clientY) => handleDragOver(target, clientY, idx)}
+                onDrop={handleDrop}
+              />
+            </div>
             {insertIdx === examChaps.length && idx === examChaps.length - 1 && <Separator />}
           </Fragment>
         ))}

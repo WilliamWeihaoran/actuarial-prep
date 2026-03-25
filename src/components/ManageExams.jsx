@@ -42,61 +42,53 @@ export default function ManageExams({ exams, onSave, onClose }) {
       />
       <div style={{ fontSize: 14, fontWeight: 500, color: C.txt, marginBottom: 12 }}>Manage exams / projects</div>
 
-      {/* One card per exam: name on top row, hours/date/actions on second row */}
+      {/* One row per exam: name | hrs | due date | archive | delete */}
       {local.map(ex => (
-        <div key={ex.id} style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+        <div key={ex.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8, opacity: ex.archived ? 0.5 : 1 }}>
           <input
-            style={{ ...inp, opacity: ex.archived ? 0.45 : 1 }}
+            style={{ ...inp, flex: 1, minWidth: 0 }}
             value={ex.name}
             onChange={e => upd(ex.id, "name", e.target.value)}
           />
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <input
-              type="text"
-              inputMode="numeric"
-              style={{ ...inp, width: 64, flexShrink: 0 }}
-              placeholder="hrs"
-              value={ex.targetHours ?? ""}
-              onChange={e => {
-                const raw = e.target.value;
-                upd(ex.id, "targetHours", raw === "" ? "" : parseInt(raw) || 0);
-              }}
-            />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <DateInput
-                value={ex.dueDate || ""}
-                onChange={v => upd(ex.id, "dueDate", v || "")}
-                placeholder="Due date"
-                block
-              />
-            </div>
-            {/* Archive toggle — archived exams are hidden from the nav but not deleted */}
-            <button
-              onClick={() => upd(ex.id, "archived", !ex.archived)}
-              title={ex.archived ? "Restore" : "Archive"}
-              style={{ ...btn, padding: "4px 6px", fontSize: 12, color: ex.archived ? C.grnL : C.dim, flexShrink: 0 }}
-            >
-              {ex.archived ? "↩" : "▣"}
-            </button>
-            <button
-              onClick={() => handleDelete(ex.id, ex.name)}
-              style={{ ...btn, padding: "4px 6px", fontSize: 14, color: C.redL, flexShrink: 0 }}
-            >
-              ×
-            </button>
-          </div>
+          <input
+            type="text"
+            inputMode="numeric"
+            style={{ ...inp, width: 52, flexShrink: 0, textAlign: "center" }}
+            placeholder="hrs"
+            value={ex.targetHours ?? ""}
+            onChange={e => {
+              const raw = e.target.value;
+              upd(ex.id, "targetHours", raw === "" ? "" : parseInt(raw) || 0);
+            }}
+          />
+          <DateInput
+            value={ex.dueDate || ""}
+            onChange={v => upd(ex.id, "dueDate", v || "")}
+            placeholder="Due date"
+          />
+          <button
+            onClick={() => upd(ex.id, "archived", !ex.archived)}
+            title={ex.archived ? "Restore" : "Archive"}
+            style={{ ...btn, padding: "4px 6px", fontSize: 12, color: ex.archived ? C.grnL : C.dim, flexShrink: 0 }}
+          >
+            {ex.archived ? "↩" : "▣"}
+          </button>
+          <button
+            onClick={() => handleDelete(ex.id, ex.name)}
+            style={{ ...btn, padding: "4px 6px", fontSize: 14, color: C.redL, flexShrink: 0 }}
+          >
+            ×
+          </button>
         </div>
       ))}
 
       {/* Add new exam form */}
       {adding ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10, marginBottom: 8 }}>
-          <input style={inp} placeholder="Project name" value={nf.name} onChange={e => setNf({ ...nf, name: e.target.value })} />
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <input type="text" inputMode="numeric" style={{ ...inp, width: 64, flexShrink: 0 }} placeholder="hrs" value={nf.targetHours ?? ""} onChange={e => { const raw = e.target.value; setNf({ ...nf, targetHours: raw === "" ? "" : parseInt(raw) || 0 }); }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <DateInput value={nf.dueDate} onChange={v => setNf({ ...nf, dueDate: v })} placeholder="Due date" block />
-            </div>
+            <input style={{ ...inp, flex: 1, minWidth: 0 }} placeholder="Project name" value={nf.name} onChange={e => setNf({ ...nf, name: e.target.value })} />
+            <input type="text" inputMode="numeric" style={{ ...inp, width: 52, flexShrink: 0, textAlign: "center" }} placeholder="hrs" value={nf.targetHours ?? ""} onChange={e => { const raw = e.target.value; setNf({ ...nf, targetHours: raw === "" ? "" : parseInt(raw) || 0 }); }} />
+            <DateInput value={nf.dueDate} onChange={v => setNf({ ...nf, dueDate: v })} placeholder="Due date" />
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button style={btnP} onClick={handleAdd}>Add</button>
