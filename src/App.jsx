@@ -128,7 +128,6 @@ export default function App() {
   // ── Zoom ───────────────────────────────────────────────────────
   useEffect(() => {
     document.documentElement.style.zoom = String(zoom);
-    window.scrollTo(0, 0);
     localStorage.setItem("appZoom", zoom);
   }, [zoom]);
 
@@ -162,7 +161,7 @@ const target = TAB_MAP[e.key.toLowerCase()];
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [focusTask, subTab]);
+  }, [focusTask]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Loading / error states ─────────────────────────────────────
   if (loading) return (

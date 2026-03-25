@@ -109,6 +109,14 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   const isMobileLand = isPhoneLand || isTabletLand;
   const isPhonePort  = !isLandscape && winW < 500;
 
+  // Reset zoom to 1 in landscape so the fixed layout isn't over-zoomed
+  useEffect(() => {
+    if (!isMobileLand) return;
+    const prev = document.documentElement.style.zoom || "1";
+    document.documentElement.style.zoom = "1";
+    return () => { document.documentElement.style.zoom = prev; };
+  }, [isMobileLand]);
+
   // ── Log confirmation screen ────────────────────────────────────
   if (showLog) {
     const logLandscape = isMobileLand;
@@ -182,9 +190,9 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
 
   // ── Timer block ────────────────────────────────────────────────
   const timerFontSize = isMobileLand
-    ? "clamp(60px, 14vw, 150px)"
+    ? "clamp(80px, 35vh, 220px)"
     : isPhonePort
-      ? "clamp(80px, 13vh, 160px)"
+      ? "clamp(32px, calc((100vw - 60px) / 5.2), 70px)"
       : "clamp(40px, 15vw, 108px)";
 
   const timerBg     = paused ? C.ambBg  : C.sur2;
@@ -195,24 +203,26 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   const timerBlock = (
     <div style={{ textAlign: "center", width: "100%" }} onClick={togglePause}>
       <div style={{
-        display: "flex", alignItems: "center", gap: isMobileLand ? 12 : 24,
+        display: "flex", alignItems: "center", gap: isMobileLand ? 12 : isPhonePort ? 10 : 24,
         background: timerBg, border: `1.5px solid ${timerBd}`,
         borderRadius: isMobileLand ? 16 : 24,
-        padding: isMobileLand ? "14px 18px" : "20px 24px",
+        padding: isMobileLand ? "18px" : isPhonePort ? "12px 16px" : "20px 24px",
         boxShadow: timerGlow,
         width: "100%", boxSizing: "border-box", justifyContent: "center",
-        cursor: "pointer",
+        cursor: "pointer", overflow: "hidden",
         transition: "background 0.3s, border-color 0.3s, box-shadow 0.3s",
       }}>
-        <div style={{
-          width: isMobileLand ? 10 : 14, height: isMobileLand ? 10 : 14, borderRadius: "50%",
-          background: paused ? C.ambL : C.grnL,
-          boxShadow: paused ? `0 0 12px ${C.ambL}` : `0 0 16px ${C.grnL}`, flexShrink: 0,
-          transition: "background 0.3s",
-        }} />
+        {!isPhonePort && (
+          <div style={{
+            width: isMobileLand ? 10 : 14, height: isMobileLand ? 10 : 14, borderRadius: "50%",
+            background: paused ? C.ambL : C.grnL,
+            boxShadow: paused ? `0 0 12px ${C.ambL}` : `0 0 16px ${C.grnL}`, flexShrink: 0,
+            transition: "background 0.3s",
+          }} />
+        )}
         <span style={{
           fontFamily: "monospace", fontSize: timerFontSize, fontWeight: 700,
-          color: timerColor, letterSpacing: "clamp(2px, 0.3vw, 6px)",
+          color: timerColor, letterSpacing: isPhonePort ? "1px" : "clamp(2px, 0.3vw, 6px)",
           transition: "color 0.3s",
         }}>
           {fmt(timer)}
@@ -340,7 +350,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, flexShrink: 0 }}>
           {exitBtn}
           <button onClick={handleEnd}
-            style={{ ...btnP, height: 36, padding: "0 18px", fontSize: 13,
+            style={{ ...btnP, height: 44, padding: "0 24px", fontSize: 15,
               display: "flex", alignItems: "center", justifyContent: "center" }}>
             End session
           </button>
