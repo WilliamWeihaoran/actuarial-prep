@@ -25,10 +25,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100%;
 }
 
 body {
-  overflow-x: hidden;
+  overflow-x: clip;
 }

@@ -339,6 +339,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   const markedCorrect  = Object.values(marks).filter(v => v === true).length;
   const markedWrong    = Object.values(marks).filter(v => v === false).length;
   const loggableIdxs   = Object.keys(details).map(Number).sort((a, b) => a - b);
+  const compactStats   = winWidth < 500;
 
   // ── Setup ──────────────────────────────────────────────────────
   if (mode === "setup") return (
@@ -694,72 +695,70 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
       {/* ── STICKY HEADER ── */}
       <div style={{
         position: "sticky", top: 0, zIndex: 20,
-        background: C.bg, paddingBottom: 12, paddingTop: 4,
+        background: C.bg,
+        paddingBottom: 10, paddingTop: 6,
         borderBottom: `1px solid ${C.bdr}`, marginBottom: 12,
       }}>
-        <div style={{ fontSize: 12, color: C.mut, marginBottom: 10, textAlign: "center" }}>
+        {/* Session name */}
+        <div style={{ fontSize: 12, color: C.mut, marginBottom: 8, textAlign: "center" }}>
           {cfg.name.trim() || (cfg.type === "topic" ? cfg.topic : "Exam")} · {grid.length} questions
           {timerLimit != null && <span style={{ color: timerWarning ? C.ambL : C.dim }}> · {fmt(timerLimit)} limit</span>}
         </div>
 
-        {/* Big timer */}
-        <div style={{ textAlign: "center", marginBottom: 12 }}>
+        {/* Timer + Pause in one row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <div style={{
-            display: "inline-flex", alignItems: "center", gap: 16,
+            flex: 1, minWidth: 0,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
             background: C.sur2,
             border: `1px solid ${timerCritical ? C.red : timerWarning ? C.amb : C.bdr2}`,
-            borderRadius: 16, padding: "16px 36px",
-            boxShadow: paused ? "none" : timerCritical ? `0 0 32px rgba(153,60,29,0.4)` : timerWarning ? `0 0 32px rgba(133,79,11,0.35)` : `0 0 32px rgba(37,99,235,0.18)`,
+            borderRadius: 12, padding: "10px 14px",
+            boxShadow: paused ? "none" : timerCritical ? `0 0 20px rgba(153,60,29,0.4)` : timerWarning ? `0 0 20px rgba(133,79,11,0.35)` : `0 0 20px rgba(37,99,235,0.18)`,
+            overflow: "hidden",
           }}>
             <div style={{
-              width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+              width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
               background: paused ? C.ambL : timerCritical ? C.redL : timerWarning ? C.ambL : C.grnL,
-              boxShadow: paused ? "none" : `0 0 12px ${timerCritical ? C.redL : timerWarning ? C.ambL : C.grnL}`,
+              boxShadow: paused ? "none" : `0 0 10px ${timerCritical ? C.redL : timerWarning ? C.ambL : C.grnL}`,
             }} />
-            <span style={{ fontFamily: "monospace", fontSize: 52, fontWeight: 700, letterSpacing: 5, color: timerCritical ? C.redL : timerWarning ? C.ambL : C.txt }}>
+            <span style={{
+              fontFamily: "monospace",
+              fontSize: "clamp(22px, 8vw, 44px)",
+              fontWeight: 700,
+              letterSpacing: "clamp(1px, 0.8vw, 4px)",
+              color: timerCritical ? C.redL : timerWarning ? C.ambL : C.txt,
+              whiteSpace: "nowrap",
+            }}>
               {fmt(timeDisplay)}
             </span>
           </div>
-          {paused && <div style={{ marginTop: 6, fontSize: 12, color: C.ambL }}>Paused</div>}
-          {timerCritical && !paused && <div style={{ marginTop: 6, fontSize: 12, color: C.redL }}>Almost out of time!</div>}
-          {timerWarning && !timerCritical && !paused && <div style={{ marginTop: 6, fontSize: 12, color: C.ambL }}>Under 5 min left</div>}
-        </div>
-
-        {/* Controls */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 12 }}>
           <button onClick={togglePause}
-            style={{ ...btn, minWidth: 110, textAlign: "center", padding: "8px 0", color: paused ? C.blueL : C.mut, borderColor: paused ? C.blueBd : C.bdr2 }}>
-            {paused ? "▶  Resume" : "⏸  Pause"}
-          </button>
-          <button style={{ ...btnP, padding: "8px 32px", fontSize: 15 }} onClick={finish}>
-            Finish
-          </button>
-          <button
-            style={{ ...btn, padding: "8px 14px", color: C.redL, borderColor: C.red }}
-            onClick={() => setConfirm({
-              title: "Cancel session?",
-              message: "All progress will be lost. This cannot be undone.",
-              onConfirm: () => { setConfirm(null); reset(); },
-            })}
-          >
-            ✕ Cancel
+            style={{
+              ...btn, flexShrink: 0, padding: "10px 14px", fontSize: 18, lineHeight: 1,
+              color: paused ? C.blueL : C.mut, borderColor: paused ? C.blueBd : C.bdr2,
+            }}>
+            {paused ? "▶" : "⏸"}
           </button>
         </div>
 
-        {/* Stats — order: confident, unsure, flagged, answered */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-          <span style={{ background: C.grnBg, color: C.grnL, fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>● {confidentCount} confident</span>
-          <span style={{ background: C.ambBg, color: C.ambL, fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>● {unsureCount} unsure</span>
-          <span style={{ background: C.redBg, color: C.redL, fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>⚑ {flaggedCount} flagged</span>
-          <span style={{ background: C.sur2,  color: C.mut,  fontSize: 11, padding: "4px 12px", borderRadius: 99 }}>{answeredCount}/{grid.length} answered</span>
+        {/* Warning / paused label */}
+        {paused && <div style={{ textAlign: "center", marginBottom: 6, fontSize: 12, color: C.ambL }}>Paused</div>}
+        {timerCritical && !paused && <div style={{ textAlign: "center", marginBottom: 6, fontSize: 12, color: C.redL }}>Almost out of time!</div>}
+        {timerWarning && !timerCritical && !paused && <div style={{ textAlign: "center", marginBottom: 6, fontSize: 12, color: C.ambL }}>Under 5 min left</div>}
+
+        {/* Stats — single scrollable row, compact labels on narrow screens */}
+        <div style={{ display: "flex", gap: compactStats ? 4 : 8, flexWrap: "nowrap", justifyContent: "center", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+          <span style={{ background: C.grnBg, color: C.grnL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>● {confidentCount}{!compactStats && " confident"}</span>
+          <span style={{ background: C.ambBg, color: C.ambL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>● {unsureCount}{!compactStats && " unsure"}</span>
+          <span style={{ background: C.redBg, color: C.redL, fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>⚑ {flaggedCount}{!compactStats && " flagged"}</span>
+          <span style={{ background: C.sur2,  color: C.mut,  fontSize: 11, padding: compactStats ? "3px 8px" : "4px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>{answeredCount}/{grid.length}{!compactStats && " answered"}</span>
         </div>
 
         {paused && (
-          <div style={{ textAlign: "center", marginTop: 10, padding: "6px 14px", fontSize: 12, color: C.ambL, background: C.ambBg, border: `1px solid ${C.amb}`, borderRadius: 8 }}>
+          <div style={{ textAlign: "center", marginTop: 8, padding: "5px 14px", fontSize: 12, color: C.ambL, background: C.ambBg, border: `1px solid ${C.amb}`, borderRadius: 8 }}>
             Session paused — choices visible but locked
           </div>
         )}
-
       </div>
 
       {/* ── SCROLLABLE QUESTION GRID ── */}
@@ -830,6 +829,23 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
 
       <div style={{ marginTop: 10, fontSize: 11, color: C.dim, textAlign: "center" }}>
         Click letter once = confident (green) · twice = unsure (amber) · three times = clear · ⚑ to flag
+      </div>
+
+      {/* Finish + Cancel at the bottom */}
+      <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+        <button style={{ ...btnP, flex: 1, padding: "13px 0", fontSize: 15, fontWeight: 700 }} onClick={finish}>
+          Finish
+        </button>
+        <button
+          style={{ ...btn, padding: "13px 20px", color: C.redL, borderColor: C.red }}
+          onClick={() => setConfirm({
+            title: "Cancel session?",
+            message: "All progress will be lost. This cannot be undone.",
+            onConfirm: () => { setConfirm(null); reset(); },
+          })}
+        >
+          ✕ Cancel
+        </button>
       </div>
     </div>
   );
