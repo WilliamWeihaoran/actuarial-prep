@@ -34,7 +34,7 @@ export default function CustomSelect({ value, options, onChange, placeholder }) 
           gap: 8,
         }}
       >
-        <span style={{ color: selected ? C.txt : C.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ color: selected ? C.txt : C.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
           {selected ? selected.label : (placeholder || "Select...")}
         </span>
         <span style={{ color: C.dim, fontSize: 9, flexShrink: 0 }}>{open ? "▲" : "▼"}</span>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useData } from "./hooks/useData";
 import { C, styles, fmtRelDate } from "./constants";
 import ManageExams   from "./components/ManageExams";
@@ -20,6 +20,8 @@ export default function App() {
   const [focusTask, setFocusTask]             = useState(null);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
   const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem("appZoom") || "1.3"));
+  const [showDotsMenu, setShowDotsMenu] = useState(false);
+  const dotsMenuRef = useRef(null);
   const [winW, setWinW] = useState(() => window.innerWidth);
   const [winH, setWinH] = useState(() => window.innerHeight);
 
@@ -131,6 +133,14 @@ export default function App() {
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
+
+  // ── Dots menu outside-click ────────────────────────────────────
+  useEffect(() => {
+    if (!showDotsMenu) return;
+    const h = (e) => { if (dotsMenuRef.current && !dotsMenuRef.current.contains(e.target)) setShowDotsMenu(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showDotsMenu]);
 
   // ── Zoom ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -274,11 +284,40 @@ const target = TAB_MAP[e.key.toLowerCase()];
           ))}
           <div style={{ flex: 1 }} />
           {saving && <span style={{ fontSize: 11, color: C.dim }}>Saving...</span>}
-          <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A−</button>
-          <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A+</button>
-          <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px" }}>
-            Edit projects
-          </button>
+          {winW < 500 ? (
+            <div ref={dotsMenuRef} style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowDotsMenu(v => !v)}
+                style={{ ...btn, fontSize: 16, padding: "2px 10px", letterSpacing: 1 }}
+              >···</button>
+              {showDotsMenu && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 300,
+                  background: C.sur2, border: `1px solid ${C.bdr2}`, borderRadius: 10,
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.5)", overflow: "hidden", minWidth: 160,
+                }}>
+                  <button onMouseDown={() => { setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10)); }}
+                    style={{ ...btn, width: "100%", textAlign: "left", borderRadius: 0, border: "none", borderBottom: `1px solid ${C.bdr}`, padding: "10px 14px", fontSize: 13 }}>
+                    A− &nbsp;<span style={{ color: C.dim, fontSize: 11 }}>Decrease text size</span>
+                  </button>
+                  <button onMouseDown={() => { setZoom(z => Math.min(1.5, Math.round((z + 0.1) * 10) / 10)); }}
+                    style={{ ...btn, width: "100%", textAlign: "left", borderRadius: 0, border: "none", borderBottom: `1px solid ${C.bdr}`, padding: "10px 14px", fontSize: 13 }}>
+                    A+ &nbsp;<span style={{ color: C.dim, fontSize: 11 }}>Increase text size</span>
+                  </button>
+                  <button onMouseDown={() => { setShowManage(v => !v); setShowDotsMenu(false); }}
+                    style={{ ...btn, width: "100%", textAlign: "left", borderRadius: 0, border: "none", padding: "10px 14px", fontSize: 13 }}>
+                    Edit projects
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (<>
+            <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A−</button>
+            <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A+</button>
+            <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px" }}>
+              Edit projects
+            </button>
+          </>)}
         </div>
 
         {/* Hours bar */}

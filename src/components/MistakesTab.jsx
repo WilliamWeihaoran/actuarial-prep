@@ -18,7 +18,7 @@ export default function MistakesTab({
   const today                             = new Date().toISOString().slice(0, 10);
 
   const topics     = chapters.filter(c => c.examId === examId).map(c => c.name);
-  const [mf, setMf] = useState({ topic: topics[0] || "", description: "", source: "", date: today });
+  const [mf, setMf] = useState({ topic: "", description: "", source: "", date: today });
 
   const examMistakes = mistakes.filter(m => m.examId === examId);
   const unresolved   = examMistakes.filter(m => !m.resolved);
@@ -52,7 +52,7 @@ export default function MistakesTab({
   const handleAdd = () => {
     if (!mf.description.trim()) return;
     onAddMistake({ ...mf, examId });
-    setMf({ topic: topics[0] || "", description: "", source: "", date: today });
+    setMf({ topic: "", description: "", source: "", date: today });
     setShowAdd(false);
   };
 
@@ -74,9 +74,13 @@ export default function MistakesTab({
             <div>
               <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Topic</div>
               {topics.length > 0 ? (
-                <CustomSelect value={mf.topic} options={topics} onChange={v => setMf({ ...mf, topic: v })} />
+                <CustomSelect
+                  value={mf.topic}
+                  options={[{ value: "", label: "No topic" }, ...topics.map(t => ({ value: t, label: t }))]}
+                  onChange={v => setMf({ ...mf, topic: v })}
+                />
               ) : (
-                <input style={inp} placeholder="Topic name" value={mf.topic} onChange={e => setMf({ ...mf, topic: e.target.value })} />
+                <input style={inp} placeholder="Topic name (optional)" value={mf.topic} onChange={e => setMf({ ...mf, topic: e.target.value })} />
               )}
             </div>
 

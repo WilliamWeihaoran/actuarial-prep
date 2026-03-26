@@ -399,7 +399,7 @@ export default function TasksTab({ examTasks, examChapters, chapters, onAddTask,
           </div>
           {/* Row 2: Topic + Due date */}
           <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 10, marginBottom: 10 }}>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Topic</div>
               <CustomSelect
                 value={tf.chapterId}

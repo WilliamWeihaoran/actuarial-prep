@@ -45,7 +45,8 @@ export default function TaskCard({ task, onCycle, onComplete, onCancel, onSave, 
   const hoursMenuRef  = useRef(null);
   const chapMenuRef   = useRef(null);
   const prePendingRef = useRef(null); // timeout waiting for double-tap (250ms)
-  const pendingRef    = useRef(null); // { type, timerId } — 2400ms commit timer
+  const pendingRef    = useRef(null); // { type, timerId } — 2000ms commit timer
+  const fillRef       = useRef(null);
 
   // Clean up timers on unmount
   useEffect(() => () => {
@@ -54,6 +55,26 @@ export default function TaskCard({ task, onCycle, onComplete, onCancel, onSave, 
   }, []);
 
   useEffect(() => { setTitle(task.title); }, [task.title]);
+
+  // Fill animation — imperatively driven so timing is exact
+  useEffect(() => {
+    const el = fillRef.current;
+    if (!el) return;
+    if (visualState) {
+      el.style.background = visualState === "done" ? C.grnBg : "#3a3f55";
+      el.style.transition = "none";
+      el.style.width = "0%";
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (fillRef.current) {
+          fillRef.current.style.transition = "width 2s linear";
+          fillRef.current.style.width = "100%";
+        }
+      }));
+    } else {
+      el.style.transition = "none";
+      el.style.width = "0%";
+    }
+  }, [visualState]);
 
   useEffect(() => {
     if (!showPrioMenu) return;
@@ -78,7 +99,7 @@ export default function TaskCard({ task, onCycle, onComplete, onCancel, onSave, 
 
   const handleStatusClick = useCallback(() => {
     if (onComplete && onCancel) {
-      // ── Undo: tap during 2400ms animation ─────────────────────
+      // ── Undo: tap during 2000ms animation ─────────────────────
       if (pendingRef.current) {
         clearTimeout(pendingRef.current.timerId);
         pendingRef.current = null;
@@ -96,7 +117,7 @@ export default function TaskCard({ task, onCycle, onComplete, onCancel, onSave, 
             pendingRef.current = null;
             setVisualState(null);
             onCancel();
-          }, 2400),
+          }, 2000),
         };
         return;
       }
@@ -110,7 +131,7 @@ export default function TaskCard({ task, onCycle, onComplete, onCancel, onSave, 
             pendingRef.current = null;
             setVisualState(null);
             onComplete();
-          }, 2400),
+          }, 2000),
         };
       }, 250);
     } else if (onCycle) {
@@ -136,16 +157,17 @@ export default function TaskCard({ task, onCycle, onComplete, onCancel, onSave, 
 
   const isStruckThrough = task.status === "Done" || task.status === "Cancelled" || visualState === "cancelled";
 
-  const cardBg     = visualState === "done" ? C.grnBg : visualState === "cancelled" ? "#1a1a22" : C.sur;
-  const cardBorder = visualState === "done" ? C.grnL  : visualState === "cancelled" ? C.bdr2    : C.bdr;
+  const cardBorder = visualState === "done" ? C.grnL : visualState === "cancelled" ? C.bdr2 : C.bdr;
 
   return (
     <div style={{
-      background: cardBg, border: `1px solid ${cardBorder}`,
-      borderRadius: 10, marginBottom: 6, padding: "7px 12px",
-      display: "flex", alignItems: "center", gap: 8,
-      transition: "background 0.25s, border-color 0.25s",
+      position: "relative", overflow: "hidden",
+      background: C.sur, border: `1px solid ${cardBorder}`,
+      borderRadius: 10, marginBottom: 6,
+      transition: "border-color 0.25s",
     }}>
+      <div ref={fillRef} style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: "0%", zIndex: 1, pointerEvents: "none" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", position: "relative", zIndex: 2 }}>
       <StatusCircle status={displayStatus} onClick={handleStatusClick} />
 
       {/* Title — content-width, truncates; input takes flex:1 when editing */}
@@ -259,6 +281,7 @@ export default function TaskCard({ task, onCycle, onComplete, onCancel, onSave, 
 
       {/* Due date */}
       <DateInput value={task.dueDate || ""} onChange={v => onSave({ dueDate: v || null })} placeholder="date" style={{ fontSize: 11, flexShrink: 0 }} />
+      </div>
     </div>
   );
 }
