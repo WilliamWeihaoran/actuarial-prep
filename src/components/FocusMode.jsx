@@ -10,17 +10,6 @@ const fmt = (s) => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 };
 
-const SNAP_MINS = [5, 10, 15, 30, 45, 60, 75, 90, 105, 120, 150, 180, 210, 240, 270, 300];
-
-function snapMinutes(totalMinutes) {
-  if (totalMinutes <= 0) return SNAP_MINS[0];
-  let best = SNAP_MINS[0], bestDiff = Math.abs(totalMinutes - best);
-  for (const m of SNAP_MINS) {
-    const diff = Math.abs(totalMinutes - m);
-    if (diff < bestDiff) { best = m; bestDiff = diff; }
-  }
-  return best;
-}
 
 export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExit }) {
   const [timer,      setTimer]     = useState(0);
@@ -68,10 +57,9 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
 
   const handleEnd = () => {
     clearInterval(timerRef.current);
-    const rawMins = Math.round(timer / 60);
-    const snapped = snapMinutes(rawMins);
-    setLogH(String(Math.floor(snapped / 60)));
-    setLogM(String(snapped % 60));
+    const mins = Math.ceil(timer / 60);
+    setLogH(String(Math.floor(mins / 60)));
+    setLogM(String(mins % 60));
     setShowLog(true);
   };
 
@@ -94,7 +82,8 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   };
 
   const p = PRIO.find(x => x.l === task.priority) || PRIO[1];
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
   const isOverdue = task.dueDate && task.dueDate < today;
 
   const completedBlocks = Math.floor(timer / 1800);
@@ -300,7 +289,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
   const exitBtn = (
     <button onClick={() => { clearInterval(timerRef.current); onExit(); }}
       style={{ ...btn, fontSize: 12, padding: "3px 10px", color: C.dim }}>
-      Back to tasks
+      Cancel session
     </button>
   );
 

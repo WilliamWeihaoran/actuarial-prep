@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, Fragment } from "react";
 import { C, styles } from "../constants";
 import ChapterRow from "./shared/ChapterRow";
+import TaskCard from "./shared/TaskCard";
 import DateInput from "./shared/DateInput";
 import ConfirmDialog from "./shared/ConfirmDialog";
 
@@ -12,20 +13,26 @@ const openMapCache = {};
 export default function TopicsTab({
   examId, chapters, tasks,
   onAddChapter, onEditChapter, onDeleteChapter, onDoneToggleChapter,
-  onAddTask, onCycleTask, onDeleteTask, onSaveTask,
-  onReorderChapters,
+  onAddTask, onCompleteTask, onCancelTask, onResetTask, onDeleteTask, onSaveTask, onFocus,
+  onReorderChapters, onReorderTasks,
 }) {
   const [showAdd,       setShowAdd]       = useState(false);
   const [cf, setCf]                       = useState({ name: "", dueDate: "" });
   const [openMap, setOpenMap]             = useState(() => ({ ...openMapCache }));
   const [insertIdx, setInsertIdx]         = useState(-1);
   const [selectedChapId, setSelectedChapId] = useState(null);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [addTaskSignal, setAddTaskSignal] = useState(0);
-  const [deleteConfirm,  setDeleteConfirm]  = useState(null);
-  const dragChapId = useRef(null);
+  const [deleteConfirm,     setDeleteConfirm]     = useState(null);
+  const [deleteTaskConfirm, setDeleteTaskConfirm] = useState(null);
+  const [logOpen,           setLogOpen]           = useState(false);
+  const dragChapId    = useRef(null);
+  const globalDragRef = useRef(null);
 
   const selectedChapIdRef = useRef(null);
   selectedChapIdRef.current = selectedChapId;
+  const selectedTaskIdRef = useRef(null);
+  selectedTaskIdRef.current = selectedTaskId;
 
   useEffect(() => {
     const h = (e) => {
@@ -42,15 +49,20 @@ export default function TopicsTab({
         }
         return;
       }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        if (selectedTaskIdRef.current) {
+          setDeleteTaskConfirm(selectedTaskIdRef.current);
+        } else if (selectedChapIdRef.current) {
+          setDeleteConfirm(selectedChapIdRef.current);
+        }
+        return;
+      }
       const sel = selectedChapIdRef.current;
       if (!sel) return;
       if (e.key === "Enter") {
         e.preventDefault();
         onDoneToggleChapter(sel);
-      }
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        setDeleteConfirm(sel);
       }
     };
     document.addEventListener("keydown", h);
@@ -125,6 +137,14 @@ export default function TopicsTab({
         onConfirm={() => { onDeleteChapter(deleteConfirm); setDeleteConfirm(null); setSelectedChapId(null); }}
         onCancel={() => setDeleteConfirm(null)}
       />
+      <ConfirmDialog
+        open={!!deleteTaskConfirm}
+        title="Delete task?"
+        message="This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => { onDeleteTask(deleteTaskConfirm); setDeleteTaskConfirm(null); setSelectedTaskId(null); }}
+        onCancel={() => setDeleteTaskConfirm(null)}
+      />
 
       {/* Add topic form */}
       {showAdd && (
@@ -191,7 +211,12 @@ export default function TopicsTab({
           <Fragment key={chap.id}>
             {insertIdx === idx && <Separator />}
             <div
-              onClick={() => setSelectedChapId(id => id === chap.id ? null : chap.id)}
+              onClick={(e) => {
+                if (e.target.closest("button, input, select, textarea, a")) return;
+                setAddTaskSignal(0);
+                setSelectedTaskId(null);
+                setSelectedChapId(id => id === chap.id ? null : chap.id);
+              }}
               style={{ borderRadius: 10, outline: selectedChapId === chap.id ? `2px solid ${C.blueL}` : "none", outlineOffset: 1 }}
             >
               <ChapterRow
@@ -204,18 +229,60 @@ export default function TopicsTab({
                 onDelete={() => setDeleteConfirm(chap.id)}
                 onEdit={u => onEditChapter(chap.id, u)}
                 onAddTask={onAddTask}
-                onCycleTask={onCycleTask}
-                onDeleteTask={onDeleteTask}
+                onCompleteTask={onCompleteTask}
+                onCancelTask={onCancelTask}
                 onSaveTask={onSaveTask}
+                onFocusTask={onFocus ? t => onFocus(t) : undefined}
                 onDragStart={handleDragStart}
                 onDragOver={(target, clientY) => handleDragOver(target, clientY, idx)}
                 onDrop={handleDrop}
+                selectedTaskId={selectedTaskId}
+                onSelectTask={id => { setSelectedTaskId(id); setSelectedChapId(null); }}
+                onReorderTasks={onReorderTasks}
+                globalDragRef={globalDragRef}
               />
             </div>
             {insertIdx === examChaps.length && idx === examChaps.length - 1 && <Separator />}
           </Fragment>
         ))}
       </div>
+
+      {/* Unified logbook — all Done/Cancelled tasks across all topics */}
+      {(() => {
+        const chapIds = new Set(examChaps.map(c => c.id));
+        const logTasks = tasks.filter(t => chapIds.has(t.chapterId) && (t.status === "Done" || t.status === "Cancelled"));
+        if (logTasks.length === 0) return null;
+        return (
+          <div style={{ marginTop: 16 }}>
+            <button
+              onClick={() => setLogOpen(o => !o)}
+              style={{ ...btn, fontSize: 12, padding: "4px 12px", borderStyle: "dashed", color: C.dim, marginBottom: logOpen ? 10 : 0 }}
+            >
+              {logOpen ? "▲" : "▼"} Logbook ({logTasks.length})
+            </button>
+            {logOpen && examChaps.map(chap => {
+              const chapLog = logTasks.filter(t => t.chapterId === chap.id);
+              if (chapLog.length === 0) return null;
+              return (
+                <div key={chap.id} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.mut, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+                    {chap.name}
+                  </div>
+                  {chapLog.map(t => (
+                    <div key={t.id} style={{ opacity: 0.5 }}>
+                      <TaskCard
+                        task={t}
+                        onCycle={() => onResetTask(t.id)}
+                        onSave={u => onSaveTask(t.id, u)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
     </div>
   );
 }

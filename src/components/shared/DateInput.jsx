@@ -134,14 +134,6 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
       >
         <CalIcon color={iconColor} />
         <span>{value ? fmtRelDate(value) : placeholder}</span>
-        {value && (
-          <span
-            onMouseDown={e => { e.stopPropagation(); onChange(""); }}
-            style={{ marginLeft: 2, color: C.dim, fontSize: 14, lineHeight: 1, cursor: "pointer" }}
-          >
-            ×
-          </span>
-        )}
       </button>
 
       {/* Calendar popup */}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import { C, styles } from "../../constants";
 import TaskCard from "./TaskCard";
 import DateInput from "./DateInput";
@@ -38,27 +38,37 @@ const DonutChart = ({ pct, done }) => {
   );
 };
 
+const TaskSeparator = () => (
+  <div style={{ height: 2, background: C.blueL, borderRadius: 1, margin: "2px 0", opacity: 0.7 }} />
+);
+
 export default function ChapterRow({
   chap, tasks,
   onDoneToggle, onDelete, onEdit,
-  onAddTask, onCycleTask, onDeleteTask, onSaveTask,
+  onAddTask, onCompleteTask, onCancelTask, onSaveTask,
   onDragStart, onDragOver, onDrop,
   onFocusTask,
   open: openProp,
   onToggleOpen,
   openAddTask,
+  selectedTaskId, onSelectTask, onReorderTasks,
+  globalDragRef,
 }) {
   const [openLocal,  setOpenLocal]  = useState(true);
   const open    = openProp !== undefined ? openProp : openLocal;
   const toggleOpen = onToggleOpen || (() => setOpenLocal(v => !v));
-  const [logOpen,    setLogOpen]    = useState(false);
   const [showAdd,    setShowAdd]    = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameVal,    setNameVal]    = useState(chap.name);
-  const [tf, setTf] = useState({ title: "", priority: "Medium", hours: 1 });
+  const [tf, setTf] = useState({ title: "", priority: "Medium", hours: 1, dueDate: "" });
   const [showHoursMenu, setShowHoursMenu] = useState(false);
-  const hoursMenuRef = useRef(null);
-  const fadingIds    = useRef({});
+  const hoursMenuRef   = useRef(null);
+  const nameClickRef   = useRef(false);
+  const nameClickTimer = useRef(null);
+  const dragTaskIdRef  = useRef(null);
+  const [taskDraggingId, setTaskDraggingId] = useState(null);
+  const [taskInsertIdx,  setTaskInsertIdx]  = useState(-1);
+  const [crossInsertIdx, setCrossInsertIdx] = useState(-1);
 
   useEffect(() => {
     if (!showHoursMenu) return;
@@ -66,8 +76,6 @@ export default function ChapterRow({
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showHoursMenu]);
-  const [, forceUpdate] = useState(0);
-
   useEffect(() => { setNameVal(chap.name); }, [chap.name]);
 
   useEffect(() => {
@@ -75,28 +83,16 @@ export default function ChapterRow({
     setShowAdd(true);
   }, [openAddTask]);
 
-  const active = tasks.filter(t => t.status !== "Done");
-  const done   = tasks.filter(t => t.status === "Done");
-  const pct    = tasks.length ? Math.round(done.length / tasks.length * 100) : 0;
-
-  const cycleWithFade = (task) => {
-    if (task.status === "In Progress") {
-      fadingIds.current[task.id] = true;
-      forceUpdate(n => n + 1);
-      setTimeout(() => {
-        onCycleTask(task.id);
-        delete fadingIds.current[task.id];
-        forceUpdate(n => n + 1);
-      }, 2400);
-    } else {
-      onCycleTask(task.id);
-    }
-  };
+  const active    = tasks.filter(t => t.status !== "Done" && t.status !== "Cancelled");
+  const logbook   = tasks.filter(t => t.status === "Done" || t.status === "Cancelled");
+  const eligible  = tasks.filter(t => t.status !== "Cancelled");
+  const doneCount = tasks.filter(t => t.status === "Done").length;
+  const pct       = eligible.length ? Math.round(doneCount / eligible.length * 100) : 0;
 
   const handleAddTask = () => {
     if (!tf.title.trim()) return;
     onAddTask({ ...tf, chapterId: chap.id });
-    setTf({ title: "", priority: "Medium", hours: 1 });
+    setTf({ title: "", priority: "Medium", hours: 1, dueDate: "" });
     setShowHoursMenu(false);
     setShowAdd(false);
   };
@@ -108,22 +104,23 @@ export default function ChapterRow({
     setEditingName(false);
   };
 
+  const [dragging, setDragging] = useState(false);
+
   return (
     <div
       draggable
-      onDragStart={e => onDragStart(e, chap.id)}
+      onDragStart={e => { setDragging(true); onDragStart(e, chap.id); }}
+      onDragEnd={() => setDragging(false)}
       onDragOver={e => { e.preventDefault(); onDragOver(e.currentTarget, e.clientY); }}
       onDrop={e => { e.preventDefault(); onDrop(); }}
       style={{
         marginBottom: 12,
-        opacity:      chap.done ? 0.6 : 1,
+        opacity: dragging ? 0.35 : chap.done ? 0.6 : 1,
       }}
     >
       {/* Chapter header — single line */}
-      <div style={{ background: C.sur2, border: `1px solid ${C.bdr2}`, borderRadius: 10, padding: "8px 12px" }}>
+      <div onDoubleClick={() => { if (!nameClickRef.current) toggleOpen(); }} style={{ background: C.sur2, border: `1px solid ${C.bdr2}`, borderRadius: 10, padding: "8px 12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ color: C.dim, cursor: "grab", fontSize: 14, padding: "0 2px", flexShrink: 0 }}>⠿</span>
-
           <button onClick={toggleOpen}
             style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 11, padding: "0 2px", flexShrink: 0, lineHeight: 1 }}>
             {open ? "▼" : "▶"}
@@ -142,7 +139,14 @@ export default function ChapterRow({
                 value={nameVal} onChange={e => setNameVal(e.target.value)} onBlur={saveName}
                 onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") { setNameVal(chap.name); setEditingName(false); } }} />
             ) : (
-              <span onClick={() => setEditingName(true)} title="Click to rename"
+              <span
+                onClick={() => {
+                  nameClickRef.current = true;
+                  clearTimeout(nameClickTimer.current);
+                  nameClickTimer.current = setTimeout(() => { nameClickRef.current = false; }, 500);
+                  setEditingName(true);
+                }}
+                title="Click to rename"
                 style={{ fontSize: 14, fontWeight: 500, color: chap.done ? C.dim : C.txt, textDecoration: chap.done ? "line-through" : "none", cursor: "text" }}>
                 {chap.name}
               </span>
@@ -150,13 +154,19 @@ export default function ChapterRow({
           </div>
 
           {/* Task count */}
-          {tasks.length > 0 && (
+          {eligible.length > 0 && (
             <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap", flexShrink: 0 }}>
-              {done.length}/{tasks.length}
+              {doneCount}/{eligible.length}
             </span>
           )}
 
           <DateInput value={chap.dueDate || ""} onChange={v => onEdit({ dueDate: v || null })} placeholder="Due date" style={{ fontSize: 11 }} />
+
+          <button
+            onClick={e => { e.stopPropagation(); if (!open) toggleOpen(); setShowAdd(true); }}
+            title="Add task"
+            style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 2px" }}
+          >+</button>
 
           <button onClick={onDelete} style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>
         </div>
@@ -164,47 +174,102 @@ export default function ChapterRow({
 
       {/* Tasks list */}
       {open && (
-        <div style={{ paddingLeft: 14, marginTop: 6 }}>
-          {active.map(t => (
-            <div
-              key={t.id}
-              style={{ opacity: fadingIds.current[t.id] ? 0.2 : 1, transition: fadingIds.current[t.id] ? "opacity 2s" : "none" }}
-            >
-              <TaskCard
-                task={t}
-                onCycle={() => cycleWithFade(t)}
-                onDelete={() => onDeleteTask(t.id)}
-                onSave={u => onSaveTask(t.id, u)}
-                onFocus={onFocusTask ? () => onFocusTask(t) : undefined}
-              />
-            </div>
-          ))}
-
-          {done.length > 0 && (
-            <div style={{ marginBottom: 6 }}>
-              <button
-                onClick={() => setLogOpen(o => !o)}
-                style={{ ...btn, fontSize: 11, padding: "3px 10px", marginBottom: logOpen ? 6 : 0, color: C.dim, borderStyle: "dashed" }}
+        <div
+          style={{ paddingLeft: 14, marginTop: 6 }}
+          onDragOver={e => {
+            if (!globalDragRef?.current || globalDragRef.current.fromChapId === chap.id) return;
+            e.preventDefault();
+            setCrossInsertIdx(active.length);
+          }}
+          onDragLeave={e => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setCrossInsertIdx(-1);
+          }}
+          onDrop={e => {
+            if (!globalDragRef?.current || globalDragRef.current.fromChapId === chap.id) return;
+            e.preventDefault();
+            onSaveTask(globalDragRef.current.taskId, { chapterId: chap.id });
+            globalDragRef.current = null;
+            setCrossInsertIdx(-1);
+          }}
+        >
+          {active.map((t, idx) => (
+            <Fragment key={t.id}>
+              {taskInsertIdx === idx && <TaskSeparator />}
+              {crossInsertIdx === idx && <TaskSeparator />}
+              <div
+                draggable
+                onDragStart={e => {
+                  e.stopPropagation();
+                  setTaskDraggingId(t.id);
+                  dragTaskIdRef.current = t.id;
+                  if (globalDragRef) globalDragRef.current = { taskId: t.id, fromChapId: chap.id };
+                }}
+                onDragEnd={() => {
+                  setTaskInsertIdx(-1); setTaskDraggingId(null);
+                  setCrossInsertIdx(-1);
+                  if (globalDragRef) globalDragRef.current = null;
+                }}
+                onDragOver={e => {
+                  e.preventDefault(); e.stopPropagation();
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const insertPos = e.clientY < r.top + r.height / 2 ? idx : idx + 1;
+                  if (globalDragRef?.current && globalDragRef.current.fromChapId !== chap.id) {
+                    setCrossInsertIdx(insertPos);
+                  } else {
+                    setTaskInsertIdx(insertPos);
+                  }
+                }}
+                onDrop={e => {
+                  e.preventDefault(); e.stopPropagation();
+                  if (globalDragRef?.current && globalDragRef.current.fromChapId !== chap.id) {
+                    onSaveTask(globalDragRef.current.taskId, { chapterId: chap.id });
+                    globalDragRef.current = null;
+                    setCrossInsertIdx(-1);
+                    return;
+                  }
+                  const fromId = dragTaskIdRef.current;
+                  if (fromId && taskInsertIdx >= 0 && onReorderTasks) {
+                    const arr = [...active];
+                    const fromIdx = arr.findIndex(t2 => t2.id === fromId);
+                    if (fromIdx >= 0) {
+                      const [moved] = arr.splice(fromIdx, 1);
+                      arr.splice(taskInsertIdx > fromIdx ? taskInsertIdx - 1 : taskInsertIdx, 0, moved);
+                      onReorderTasks([...arr, ...logbook]);
+                    }
+                  }
+                  setTaskInsertIdx(-1); setTaskDraggingId(null); dragTaskIdRef.current = null;
+                }}
+                onClick={e => { e.stopPropagation(); onSelectTask?.(t.id === selectedTaskId ? null : t.id); }}
+                style={{
+                  opacity: taskDraggingId === t.id ? 0.35 : 1,
+                  transition: "none",
+                  borderRadius: 10,
+                  outline: selectedTaskId === t.id ? `2px solid ${C.blueL}` : "none",
+                  outlineOffset: 1,
+                }}
               >
-                {logOpen ? "▲" : "▼"} Logbook ({done.length})
-              </button>
-              {logOpen && done.map(t => (
-                <div key={t.id} style={{ opacity: 0.45 }}>
-                  <TaskCard
-                    task={t}
-                    onCycle={() => onCycleTask(t.id)}
-                    onDelete={() => onDeleteTask(t.id)}
-                    onSave={u => onSaveTask(t.id, u)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+                <TaskCard
+                  task={t}
+                  onComplete={() => onCompleteTask(t.id)}
+                  onCancel={() => onCancelTask(t.id)}
+                  onSave={u => onSaveTask(t.id, u)}
+                  onFocus={onFocusTask ? () => onFocusTask(t) : undefined}
+                  onSelect={() => onSelectTask?.(t.id === selectedTaskId ? null : t.id)}
+                />
+              </div>
+            </Fragment>
+          ))}
+          {taskInsertIdx === active.length && <TaskSeparator />}
+          {crossInsertIdx === active.length && <TaskSeparator />}
 
-          {showAdd ? (
-            <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "12px 14px", marginBottom: 6 }}>
-              {/* Row 1: title (7fr) + hours picker (3fr) */}
-              <div style={{ display: "grid", gridTemplateColumns: "7fr 3fr", gap: 8, marginBottom: 8 }}>
+
+          {showAdd && (
+            <div
+              onKeyDown={e => { if (e.key === "Enter" && e.target.tagName !== "INPUT") { e.preventDefault(); handleAddTask(); } }}
+              style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "12px 14px", marginBottom: 6 }}
+            >
+              {/* Row 1: title (5fr) + date (3fr) + hours (2fr) */}
+              <div style={{ display: "grid", gridTemplateColumns: "5fr 3fr 2fr", gap: 8, marginBottom: 8 }}>
                 <div>
                   <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Task title</div>
                   <input
@@ -215,6 +280,10 @@ export default function ChapterRow({
                     onChange={e => setTf({ ...tf, title: e.target.value })}
                     onKeyDown={e => e.key === "Enter" && handleAddTask()}
                   />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Due date</div>
+                  <DateInput value={tf.dueDate} onChange={v => setTf({ ...tf, dueDate: v })} placeholder="Set date" block />
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: C.mut, marginBottom: 4 }}>Est. hours</div>
@@ -266,13 +335,6 @@ export default function ChapterRow({
                 </div>
               </div>
             </div>
-          ) : (
-            <button
-              onClick={() => setShowAdd(true)}
-              style={{ ...btn, fontSize: 12, padding: "5px 12px", color: C.dim, borderStyle: "dashed", marginBottom: 4 }}
-            >
-              + Add task
-            </button>
           )}
         </div>
       )}

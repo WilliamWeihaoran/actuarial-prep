@@ -40,6 +40,7 @@ export default function App() {
   // Active tasks with logged focus time: count their actualHours too (time already spent).
   const doneHours  = Math.round((
     examTasks.reduce((sum, t) => {
+      if (t.status === "Cancelled") return sum;
       if (t.status === "Done") return sum + (t.actualHours || t.hours);
       return sum + (t.actualHours || 0);
     }, 0) + practiceHours
@@ -79,19 +80,24 @@ export default function App() {
   const reorderChapters = (reordered) =>
     update(d => ({ ...d, chapters: d.chapters.map(c => reordered.find(r => r.id === c.id) || c) }));
 
+  const reorderTasks = (reordered) =>
+    update(d => {
+      const ids = new Set(reordered.map(t => t.id));
+      return { ...d, tasks: [...d.tasks.filter(t => !ids.has(t.id)), ...reordered] };
+    });
+
   // ── Task actions ───────────────────────────────────────────────
   const addTask = (task) =>
     update(d => ({ ...d, tasks: [...d.tasks, { ...task, id: crypto.randomUUID(), examId, status: "Not Started" }] }));
 
-  const cycleTask = (id) =>
-    update(d => ({
-      ...d,
-      tasks: d.tasks.map(t => {
-        if (t.id !== id) return t;
-        const next = t.status === "Not Started" ? "In Progress" : t.status === "In Progress" ? "Done" : "Not Started";
-        return { ...t, status: next };
-      }),
-    }));
+  const completeTask = (id) =>
+    update(d => ({ ...d, tasks: d.tasks.map(t => t.id === id ? { ...t, status: "Done" } : t) }));
+
+  const cancelTask = (id) =>
+    update(d => ({ ...d, tasks: d.tasks.map(t => t.id === id ? { ...t, status: "Cancelled" } : t) }));
+
+  const resetTask = (id) =>
+    update(d => ({ ...d, tasks: d.tasks.map(t => t.id === id ? { ...t, status: "Not Started" } : t) }));
 
   const deleteTask = (id) =>
     update(d => ({ ...d, tasks: d.tasks.filter(t => t.id !== id) }));
@@ -328,10 +334,13 @@ const target = TAB_MAP[e.key.toLowerCase()];
           examChapters={examChapters}
           onAddTask={addTask}
           chapters={data.chapters}
-          onCycleTask={cycleTask}
+          onCompleteTask={completeTask}
+          onCancelTask={cancelTask}
+          onResetTask={resetTask}
           onDeleteTask={deleteTask}
           onSaveTask={saveTask}
           onFocus={setFocusTask}
+          onReorderTasks={reorderTasks}
         />
       )}
       {subTab === "Topics" && (
@@ -344,10 +353,14 @@ const target = TAB_MAP[e.key.toLowerCase()];
           onDeleteChapter={deleteChapter}
           onDoneToggleChapter={toggleChapterDone}
           onReorderChapters={reorderChapters}
+          onReorderTasks={reorderTasks}
           onAddTask={addTask}
-          onCycleTask={cycleTask}
+          onCompleteTask={completeTask}
+          onCancelTask={cancelTask}
+          onResetTask={resetTask}
           onDeleteTask={deleteTask}
           onSaveTask={saveTask}
+          onFocus={setFocusTask}
         />
       )}
       {subTab === "Mistakes" && (
