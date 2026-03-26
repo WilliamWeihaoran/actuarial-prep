@@ -30,6 +30,23 @@ export const PRIO = [
   { l: "Low",    bg: C.grnBg, c: C.grnL, ab: "#1a3d10", ab2: C.grnL   },
 ];
 
+// Relative date formatter — within ±6 days shows relative label, otherwise absolute
+const _MS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const _DL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+export function fmtRelDate(val) {
+  if (!val) return null;
+  const [y, m, d] = val.split("-").map(Number);
+  const date  = new Date(y, m - 1, d);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff  = Math.round((date - today) / 86400000);
+  if (diff ===  0) return "Today";
+  if (diff ===  1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  if (diff >=  2 && diff <=  6) return _DL[date.getDay()];
+  if (diff <= -2 && diff >= -6) return `Last ${_DL[date.getDay()]}`;
+  return `${_MS[m - 1]} ${d}, ${y}`;
+}
+
 // Shared base styles reused across components
 export const styles = {
   inp: {

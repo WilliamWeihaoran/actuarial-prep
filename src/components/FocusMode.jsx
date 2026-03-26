@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { C, PRIO, styles } from "../constants";
+import { C, PRIO, styles, fmtRelDate } from "../constants";
 
 const { inp, btn, btnP } = styles;
 
@@ -324,7 +324,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
             fontWeight: 700, padding: "1px 8px", borderRadius: 99 }}>{task.priority}</span>
           {task.dueDate && (
             <span style={{ fontSize: isPhoneLand ? 10 : 11, fontWeight: 600,
-              color: isOverdue ? C.redL : C.dim }}>Due {task.dueDate}</span>
+              color: isOverdue ? C.redL : C.dim }}>Due {fmtRelDate(task.dueDate)}</span>
           )}
           {task.actualHours > 0 && (
             <span style={{ fontSize: isPhoneLand ? 10 : 11, fontWeight: 600,
@@ -368,7 +368,7 @@ export default function FocusMode({ task, chapName, onAddTask, onSaveTask, onExi
         <span style={{ fontSize: 14, fontWeight: 700, color: C.txt }}>{task.title}</span>
         {chapName && <span style={{ fontSize: 11, fontWeight: 600, color: C.mut, background: C.sur2, padding: "1px 8px", borderRadius: 99 }}>{chapName}</span>}
         <span style={{ background: p.bg, color: p.c, fontSize: 11, fontWeight: 700, padding: "1px 8px", borderRadius: 99 }}>{task.priority}</span>
-        {task.dueDate && <span style={{ fontSize: 11, fontWeight: 600, color: isOverdue ? C.redL : C.dim }}>Due {task.dueDate}</span>}
+        {task.dueDate && <span style={{ fontSize: 11, fontWeight: 600, color: isOverdue ? C.redL : C.dim }}>Due {fmtRelDate(task.dueDate)}</span>}
         {task.hours && <span style={{ fontSize: 11, color: C.dim }}>{task.hours}h est.</span>}
         {task.actualHours > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: C.blueL }}>{task.actualHours}h logged</span>}
         {paused && <span style={{ fontSize: 11, fontWeight: 700, color: C.ambL }}>PAUSED</span>}

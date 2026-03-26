@@ -20,6 +20,7 @@ export default function TopicsTab({
   const [openMap, setOpenMap]             = useState(() => ({ ...openMapCache }));
   const [insertIdx, setInsertIdx]         = useState(-1);
   const [selectedChapId, setSelectedChapId] = useState(null);
+  const [addTaskSignal, setAddTaskSignal] = useState(0);
   const [deleteConfirm,  setDeleteConfirm]  = useState(null);
   const dragChapId = useRef(null);
 
@@ -30,7 +31,17 @@ export default function TopicsTab({
     const h = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === "n" || e.key === "N") { e.preventDefault(); setShowAdd(true); return; }
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        const sel = selectedChapIdRef.current;
+        if (sel) {
+          setChapOpen(sel, true);
+          setAddTaskSignal(s => s + 1);
+        } else {
+          setShowAdd(true);
+        }
+        return;
+      }
       const sel = selectedChapIdRef.current;
       if (!sel) return;
       if (e.key === "Enter") {
@@ -188,6 +199,7 @@ export default function TopicsTab({
                 tasks={tasks.filter(t => t.chapterId === chap.id)}
                 open={openMap[chap.id] !== undefined ? openMap[chap.id] : true}
                 onToggleOpen={() => setChapOpen(chap.id, !(openMap[chap.id] !== false))}
+                openAddTask={selectedChapId === chap.id ? addTaskSignal : 0}
                 onDoneToggle={() => onDoneToggleChapter(chap.id)}
                 onDelete={() => setDeleteConfirm(chap.id)}
                 onEdit={u => onEditChapter(chap.id, u)}

@@ -11,14 +11,20 @@ const DEFAULT = {
 };
 
 export function useData() {
-  const [data, setData]       = useState(DEFAULT);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
-  const [saving, setSaving]   = useState(false);
+  const [data, setData]         = useState(DEFAULT);
+  const [loading, setLoading]   = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  const [saving, setSaving]     = useState(false);
 
   // sha is GitHub's file version token — we need to pass it back on every write
-  // to prevent overwriting someone else's changes (in our case, another device)
-  const shaRef = useRef(null);
+  const shaRef      = useRef(null);
+  // Always tracks the latest data so saves never use a stale closure
+  const latestRef   = useRef(DEFAULT);
+  // Whether a save is currently in-flight
+  const isSavingRef = useRef(false);
+  // Whether data changed while a save was in-flight (needs another save afterward)
+  const dirtyRef    = useRef(false);
 
   // Load data from GitHub on first render
   useEffect(() => {
@@ -26,32 +32,51 @@ export function useData() {
       try {
         const { data: loaded, sha } = await loadData();
         shaRef.current = sha;
-        // Merge loaded data with defaults so missing keys don't break the app
-        setData({ ...DEFAULT, ...loaded });
+        const merged = { ...DEFAULT, ...loaded };
+        latestRef.current = merged;
+        setData(merged);
       } catch (err) {
-        setError(err.message);
+        setLoadError(err.message);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  // update() is the single function all components use to change data.
-  // It takes an updater function (like setState), applies it to the current data,
-  // saves to GitHub, and updates the local sha for the next write.
-  const update = useCallback(async (updaterFn) => {
+  // flush() serializes saves: if a save is already running, it marks dirty and
+  // the running save loop picks up the latest data afterward. This prevents
+  // concurrent saves that would conflict on the sha token.
+  const flush = useCallback(async () => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     setSaving(true);
     try {
-      const next = updaterFn(data);
-      setData(next); // optimistic update — UI responds immediately
-      const newSha = await saveData(next, shaRef.current);
-      shaRef.current = newSha; // store the new sha for the next save
+      do {
+        dirtyRef.current = false;
+        const newSha = await saveData(latestRef.current, shaRef.current);
+        shaRef.current = newSha;
+        setSaveError(null);
+      } while (dirtyRef.current);
     } catch (err) {
-      setError(err.message);
+      setSaveError(err.message);
     } finally {
+      isSavingRef.current = false;
       setSaving(false);
     }
-  }, [data]);
+  }, []);
 
-  return { data, update, loading, saving, error };
+  // update() applies changes synchronously to latestRef and React state,
+  // then triggers a serialized save.
+  const update = useCallback((updaterFn) => {
+    const next = updaterFn(latestRef.current);
+    latestRef.current = next;
+    setData(next);
+    if (isSavingRef.current) {
+      dirtyRef.current = true; // running save will re-save after it finishes
+    } else {
+      flush();
+    }
+  }, [flush]);
+
+  return { data, update, loading, saving, loadError, saveError };
 }

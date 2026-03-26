@@ -1,15 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { C } from "../../constants";
+import { C, fmtRelDate } from "../../constants";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
-
-function fmtDate(val) {
-  if (!val) return null;
-  const [y, m, d] = val.split("-");
-  return `${MONTHS_SHORT[parseInt(m) - 1]} ${parseInt(d)}, ${y}`;
-}
 
 function buildCalendar(year, month) {
   const first = new Date(year, month, 1).getDay();
@@ -28,8 +21,12 @@ const CalIcon = ({ color }) => (
   </svg>
 );
 
+function localDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
 export default function DateInput({ value, onChange, placeholder = "Set date", style = {}, block = false }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
   const isOverdue = value && value < today;
 
   const initView = () => {
@@ -60,6 +57,30 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  // Keyboard shortcuts when picker is open: T = today, M = tomorrow
+  // Use capture phase so this fires before any bubble-phase handlers (e.g. tab switcher in App.jsx)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        e.stopPropagation();
+        onChange(today);
+        setOpen(false);
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        e.stopPropagation();
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        onChange(localDateStr(d));
+        setOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handler, true);
+    return () => document.removeEventListener("keydown", handler, true);
+  }, [open, today, onChange]);
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
@@ -112,7 +133,7 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
         }}
       >
         <CalIcon color={iconColor} />
-        <span>{value ? fmtDate(value) : placeholder}</span>
+        <span>{value ? fmtRelDate(value) : placeholder}</span>
         {value && (
           <span
             onMouseDown={e => { e.stopPropagation(); onChange(""); }}

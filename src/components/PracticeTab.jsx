@@ -567,10 +567,11 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   const markedWrong    = Object.values(marks).filter(v => v === false).length;
   const loggableIdxs   = Object.keys(details).map(Number).sort((a, b) => a - b);
   const compactStats   = winWidth < 500;
+  const isSetupLand    = winWidth > winHeight && winHeight < 500;
 
   // ── Setup ──────────────────────────────────────────────────────
   if (mode === "setup") return (
-    <div style={{ padding: "1rem 0" }}>
+    <div style={{ padding: isSetupLand ? "8px 0" : "1rem 0" }}>
       <ConfirmDialog
         open={!!confirm}
         title={confirm?.title}
@@ -588,136 +589,199 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         overflow: "hidden", marginBottom: 14,
       }}>
         {/* Card header */}
-        <div style={{ padding: "16px 18px 0", marginBottom: 18 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: C.txt }}>New session</div>
-          <div style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>Configure and start a practice round</div>
-        </div>
-
-        <div style={{ padding: "0 18px 18px", display: "flex", flexDirection: "column", gap: 18 }}>
-
-          {/* Session name — full width */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Session name</div>
-            <input style={inp} placeholder="e.g. Mock exam 3  (optional)" value={cfg.name}
-              onChange={e => setCfg({ ...cfg, name: e.target.value })} />
+        {!isSetupLand && (
+          <div style={{ padding: "16px 18px 0", marginBottom: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: C.txt }}>New session</div>
+            <div style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>Configure and start a practice round</div>
           </div>
+        )}
 
-          {/* Questions + Starting # — equal halves */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Questions</div>
-              <input type="number" style={inp} value={cfg.count}
-                onChange={e => setCfg({ ...cfg, count: e.target.value })}
-                onBlur={() => {
-                  const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30));
-                  setCfg(c => ({ ...c, count: String(n) }));
-                }}
-              />
-              <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>max 100</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Starting #</div>
-              <input type="number" style={inp} value={cfg.startFrom}
-                onChange={e => setCfg({ ...cfg, startFrom: e.target.value })}
-                onBlur={() => {
-                  const n = Math.max(1, parseInt(cfg.startFrom) || 1);
-                  setCfg(c => ({ ...c, startFrom: String(n) }));
-                }}
-              />
-              <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>first Q number</div>
-            </div>
-          </div>
+        {isSetupLand ? (
+          /* ── Landscape: compact inline-row layout ── */
+          <div style={{ padding: "10px 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
 
-          {/* Divider */}
-          <div style={{ height: 1, background: C.bdr }} />
-
-          {/* Session type */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Type</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {[["exam", "Full exam"], ["topic", "By topic"]].map(([val, label]) => {
-                const sel = cfg.type === val;
-                return (
-                  <button key={val} onClick={() => setCfg({ ...cfg, type: val })}
-                    style={{
-                      padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400,
-                      background: sel ? C.blueBg : C.sur2,
-                      color:      sel ? C.blueL  : C.mut,
-                      border:     `1px solid ${sel ? C.blueBd : C.bdr2}`,
-                      cursor: "pointer",
-                    }}>
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Topic picker (conditional) */}
-          {cfg.type === "topic" && topics.length > 0 && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Topic</div>
-              <CustomSelect value={cfg.topic} options={topics} onChange={v => setCfg({ ...cfg, topic: v })} />
-            </div>
-          )}
-
-          {/* Divider */}
-          <div style={{ height: 1, background: C.bdr }} />
-
-          {/* Timer */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Timer</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: cfg.timerMode === "timed" ? 12 : 0 }}>
-              {[["untimed", "Untimed", C.blueBg, C.blueL, C.blueBd], ["timed", "Timed", C.ambBg, C.ambL, C.amb]].map(([val, label, sbg, sc, sbd]) => {
-                const sel = cfg.timerMode === val;
-                return (
-                  <button key={val} onClick={() => setCfg({ ...cfg, timerMode: val })}
-                    style={{
-                      padding: "10px 0", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400,
-                      background: sel ? sbg  : C.sur2,
-                      color:      sel ? sc   : C.mut,
-                      border:     `1px solid ${sel ? sbd : C.bdr2}`,
-                      cursor: "pointer",
-                    }}>
-                    {label}
-                  </button>
-                );
-              })}
+            {/* Name row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 46, fontSize: 10, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>Name</div>
+              <input style={{ ...inp, flex: 1 }} placeholder="Session name (optional)" value={cfg.name}
+                onChange={e => setCfg({ ...cfg, name: e.target.value })} />
             </div>
 
-            {cfg.timerMode === "timed" && (
-              <div style={{ display: "grid", gridTemplateColumns: winWidth > winHeight ? "repeat(6, 1fr)" : "repeat(3, 1fr)", gap: 8 }}>
-                {TIMER_OPTIONS.map(({ label, minutes }) => {
-                  const sel = cfg.timerDuration === minutes;
+            {/* Setup + Timer rows — CSS grid keeps dividers column-aligned */}
+            <div style={{ display: "grid", gridTemplateColumns: "46px auto 1px 1fr", columnGap: 7, rowGap: 8, alignItems: "center" }}>
+
+              {/* Setup: label */}
+              <div style={{ fontSize: 10, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em" }}>Setup</div>
+              {/* Setup: pre-divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <input type="number" style={{ ...inp, width: 64, textAlign: "center" }} value={cfg.count}
+                  onChange={e => setCfg({ ...cfg, count: e.target.value })}
+                  onBlur={() => { const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30)); setCfg(c => ({ ...c, count: String(n) })); }} />
+                <span style={{ fontSize: 10, color: C.dim, flexShrink: 0 }}>Qs · from</span>
+                <input type="number" style={{ ...inp, width: 64, textAlign: "center" }} value={cfg.startFrom}
+                  onChange={e => setCfg({ ...cfg, startFrom: e.target.value })}
+                  onBlur={() => { const n = Math.max(1, parseInt(cfg.startFrom) || 1); setCfg(c => ({ ...c, startFrom: String(n) })); }} />
+              </div>
+              {/* Setup: divider */}
+              <div style={{ height: 22, background: C.bdr }} />
+              {/* Setup: post-divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                {[["exam", "Exam"], ["topic", "Topic"]].map(([val, label]) => {
+                  const sel = cfg.type === val;
                   return (
-                    <button key={minutes} onClick={() => setCfg({ ...cfg, timerDuration: minutes })}
-                      style={{
-                        padding: "9px 0", borderRadius: 9, fontSize: 12, fontWeight: sel ? 600 : 400,
-                        background: sel ? C.ambBg : C.sur2,
-                        color:      sel ? C.ambL  : C.mut,
-                        border:     `1px solid ${sel ? C.amb : C.bdr2}`,
-                        cursor: "pointer",
-                      }}>
+                    <button key={val} onClick={() => setCfg({ ...cfg, type: val })}
+                      style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: sel ? 600 : 400, flexShrink: 0,
+                        background: sel ? C.blueBg : C.sur2, color: sel ? C.blueL : C.mut,
+                        border: `1px solid ${sel ? C.blueBd : C.bdr2}`, cursor: "pointer" }}>
+                      {label}
+                    </button>
+                  );
+                })}
+                {topics.length > 0 && (
+                  <div style={{ flex: 1, minWidth: 0, opacity: cfg.type === "topic" ? 1 : 0.3, pointerEvents: cfg.type === "topic" ? "auto" : "none", transition: "opacity 0.15s" }}>
+                    <CustomSelect value={cfg.topic} options={topics} onChange={v => setCfg({ ...cfg, topic: v })} />
+                  </div>
+                )}
+              </div>
+
+              {/* Timer: label */}
+              <div style={{ fontSize: 10, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em" }}>Timer</div>
+              {/* Timer: pre-divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                {[["untimed", "Untimed", C.blueBg, C.blueL, C.blueBd], ["timed", "Timed", C.ambBg, C.ambL, C.amb]].map(([val, label, sbg, sc, sbd]) => {
+                  const sel = cfg.timerMode === val;
+                  return (
+                    <button key={val} onClick={() => setCfg({ ...cfg, timerMode: val })}
+                      style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: sel ? 600 : 400, flexShrink: 0,
+                        background: sel ? sbg : C.sur2, color: sel ? sc : C.mut,
+                        border: `1px solid ${sel ? sbd : C.bdr2}`, cursor: "pointer" }}>
                       {label}
                     </button>
                   );
                 })}
               </div>
-            )}
-          </div>
+              {/* Timer: divider */}
+              <div style={{ height: 22, background: C.bdr }} />
+              {/* Timer: post-divider */}
+              <div style={{ display: "flex", gap: 5, opacity: cfg.timerMode === "timed" ? 1 : 0.3, pointerEvents: cfg.timerMode === "timed" ? "auto" : "none", transition: "opacity 0.15s" }}>
+                {TIMER_OPTIONS.map(({ label, minutes }) => {
+                  const sel = cfg.timerDuration === minutes;
+                  return (
+                    <button key={minutes} onClick={() => setCfg({ ...cfg, timerDuration: minutes })}
+                      style={{ flex: 1, padding: "6px 0", borderRadius: 8, fontSize: 11, fontWeight: sel ? 600 : 400,
+                        background: sel ? C.ambBg : C.sur2, color: sel ? C.ambL : C.mut,
+                        border: `1px solid ${sel ? C.amb : C.bdr2}`, cursor: "pointer" }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-          {/* Start button */}
-          <button
-            onClick={startSession}
-            style={{
-              width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 700,
-              background: C.grnBg, border: `1px solid ${C.grn}`, color: C.grnL,
-              borderRadius: 10, cursor: "pointer", letterSpacing: "0.02em",
-            }}
-          >
-            Start session
-          </button>
-        </div>
+            {/* Start */}
+            <button onClick={startSession}
+              style={{ width: "100%", padding: "11px 0", fontSize: 14, fontWeight: 700,
+                background: C.grnBg, border: `1px solid ${C.grn}`, color: C.grnL,
+                borderRadius: 10, cursor: "pointer", letterSpacing: "0.02em" }}>
+              Start session
+            </button>
+          </div>
+        ) : (
+          /* ── Portrait: row-based layout ── */
+          <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+            {/* Name */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 46, fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>Name</div>
+              <input style={{ ...inp, flex: 1 }} placeholder="Session name (optional)" value={cfg.name}
+                onChange={e => setCfg({ ...cfg, name: e.target.value })} />
+            </div>
+
+            <div style={{ height: 1, background: C.bdr }} />
+
+            {/* Setup + Timer — shared grid keeps labels and button rows column-aligned */}
+            <div style={{ display: "grid", gridTemplateColumns: "46px 1fr", columnGap: 10, rowGap: 12, alignItems: "start" }}>
+
+              {/* Setup label */}
+              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", paddingTop: 9 }}>Setup</div>
+              {/* Setup content */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {[["exam", "Full exam"], ["topic", "By topic"]].map(([val, label]) => {
+                    const sel = cfg.type === val;
+                    return (
+                      <button key={val} onClick={() => setCfg({ ...cfg, type: val })}
+                        style={{ padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400, flexShrink: 0,
+                          background: sel ? C.blueBg : C.sur2, color: sel ? C.blueL : C.mut,
+                          border: `1px solid ${sel ? C.blueBd : C.bdr2}`, cursor: "pointer" }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                  {topics.length > 0 && (
+                    <div style={{ flex: 1, minWidth: 0, opacity: cfg.type === "topic" ? 1 : 0.3, pointerEvents: cfg.type === "topic" ? "auto" : "none", transition: "opacity 0.15s" }}>
+                      <CustomSelect value={cfg.topic} options={topics} onChange={v => setCfg({ ...cfg, topic: v })} />
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="number" style={{ ...inp, width: 64, textAlign: "center" }} value={cfg.count}
+                    onChange={e => setCfg({ ...cfg, count: e.target.value })}
+                    onBlur={() => { const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30)); setCfg(c => ({ ...c, count: String(n) })); }} />
+                  <span style={{ fontSize: 11, color: C.dim, flexShrink: 0 }}>Qs · from</span>
+                  <input type="number" style={{ ...inp, width: 64, textAlign: "center" }} value={cfg.startFrom}
+                    onChange={e => setCfg({ ...cfg, startFrom: e.target.value })}
+                    onBlur={() => { const n = Math.max(1, parseInt(cfg.startFrom) || 1); setCfg(c => ({ ...c, startFrom: String(n) })); }} />
+                </div>
+              </div>
+
+              {/* Divider spanning both columns */}
+              <div style={{ gridColumn: "1 / -1", height: 1, background: C.bdr }} />
+
+              {/* Timer label */}
+              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", paddingTop: 9 }}>Timer</div>
+              {/* Timer content */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {[["untimed", "Untimed", C.blueBg, C.blueL, C.blueBd], ["timed", "Timed", C.ambBg, C.ambL, C.amb]].map(([val, label, sbg, sc, sbd]) => {
+                    const sel = cfg.timerMode === val;
+                    return (
+                      <button key={val} onClick={() => setCfg({ ...cfg, timerMode: val })}
+                        style={{ padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400, flexShrink: 0,
+                          background: sel ? sbg : C.sur2, color: sel ? sc : C.mut,
+                          border: `1px solid ${sel ? sbd : C.bdr2}`, cursor: "pointer" }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ opacity: cfg.timerMode === "timed" ? 1 : 0.3, pointerEvents: cfg.timerMode === "timed" ? "auto" : "none", transition: "opacity 0.15s" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
+                    {TIMER_OPTIONS.map(({ label, minutes }) => {
+                      const sel = cfg.timerDuration === minutes;
+                      return (
+                        <button key={minutes} onClick={() => setCfg({ ...cfg, timerDuration: minutes })}
+                          style={{ padding: "8px 0", borderRadius: 9, fontSize: 12, fontWeight: sel ? 600 : 400,
+                            background: sel ? C.ambBg : C.sur2, color: sel ? C.ambL : C.mut,
+                            border: `1px solid ${sel ? C.amb : C.bdr2}`, cursor: "pointer" }}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Start */}
+            <button onClick={startSession}
+              style={{ width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 700,
+                background: C.grnBg, border: `1px solid ${C.grn}`, color: C.grnL,
+                borderRadius: 10, cursor: "pointer", letterSpacing: "0.02em" }}>
+              Start session
+            </button>
+          </div>
+        )}
       </div>
 
       <button onClick={() => setShowHistory(h => !h)}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useData } from "./hooks/useData";
-import { C, styles } from "./constants";
+import { C, styles, fmtRelDate } from "./constants";
 import ManageExams   from "./components/ManageExams";
 import FocusMode     from "./components/FocusMode";
 import TasksTab      from "./components/TasksTab";
@@ -13,7 +13,7 @@ const { btn, btnP } = styles;
 const TABS = ["Tasks", "Topics", "Mistakes", "Practice", "Analytics"];
 
 export default function App() {
-  const { data, update, loading, saving, error } = useData();
+  const { data, update, loading, saving, loadError, saveError } = useData();
   const [activeExamId, setActiveExamId]       = useState(null);
   const [subTab, setSubTab]                   = useState("Tasks");
   const [showManage, setShowManage]           = useState(false);
@@ -155,6 +155,7 @@ export default function App() {
     if (focusTask) return;
     const TAB_MAP = { t: "Tasks", c: "Topics", m: "Mistakes", p: "Practice", a: "Analytics" };
     const handleKey = (e) => {
+      if (e.defaultPrevented) return;
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
 const target = TAB_MAP[e.key.toLowerCase()];
@@ -171,9 +172,9 @@ const target = TAB_MAP[e.key.toLowerCase()];
     </div>
   );
 
-  if (error) return (
+  if (loadError) return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.redL, fontSize: 14, padding: 24, textAlign: "center" }}>
-      Error: {error}
+      Error loading data: {loadError}
     </div>
   );
 
@@ -239,7 +240,7 @@ const target = TAB_MAP[e.key.toLowerCase()];
               <div style={{ height: 6, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
             </div>
             <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt, whiteSpace: "nowrap" }}>{hourPct}%</span>
-            {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap" }}>· {exam.dueDate}</span>}
+            {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap" }}>· {fmtRelDate(exam.dueDate)}</span>}
           </div>
           {/* Controls */}
           {saving && <span style={{ fontSize: 11, color: C.dim, flexShrink: 0 }}>Saving…</span>}
@@ -281,7 +282,7 @@ const target = TAB_MAP[e.key.toLowerCase()];
               <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours} hrs
             </span>
             <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt }}>{hourPct}%</span>
-            {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {exam.dueDate}</span>}
+            {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {fmtRelDate(exam.dueDate)}</span>}
           </div>
           <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
             <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
@@ -312,6 +313,13 @@ const target = TAB_MAP[e.key.toLowerCase()];
       </div>
 
       </>)}
+
+      {/* Save error banner */}
+      {saveError && (
+        <div style={{ background: C.redBg, border: `1px solid ${C.red}`, borderRadius: 8, padding: "8px 14px", marginBottom: 10, fontSize: 12, color: C.redL }}>
+          Save failed: {saveError}
+        </div>
+      )}
 
       {/* Tab content */}
       {subTab === "Tasks" && (

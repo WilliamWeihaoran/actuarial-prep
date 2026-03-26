@@ -22,6 +22,22 @@ function fmtHours(h) {
 
 const { inp, btn, btnP } = styles;
 
+const DonutChart = ({ pct, done }) => {
+  const r = 9, circ = 2 * Math.PI * r;
+  const fill  = done ? 100 : pct;
+  const color = fill === 100 ? C.grnL : fill > 0 ? C.blueL : C.bdr2;
+  return (
+    <svg width="26" height="26" viewBox="0 0 26 26" style={{ display: "block", flexShrink: 0 }}>
+      <circle cx="13" cy="13" r={r} fill="none" stroke={C.bdr} strokeWidth="3.5" />
+      {fill > 0 && (
+        <circle cx="13" cy="13" r={r} fill="none" stroke={color} strokeWidth="3.5"
+          strokeDasharray={`${(fill / 100) * circ} ${circ}`} strokeLinecap="round"
+          transform="rotate(-90 13 13)" style={{ transition: "stroke-dasharray 0.3s" }} />
+      )}
+    </svg>
+  );
+};
+
 export default function ChapterRow({
   chap, tasks,
   onDoneToggle, onDelete, onEdit,
@@ -30,6 +46,7 @@ export default function ChapterRow({
   onFocusTask,
   open: openProp,
   onToggleOpen,
+  openAddTask,
 }) {
   const [openLocal,  setOpenLocal]  = useState(true);
   const open    = openProp !== undefined ? openProp : openLocal;
@@ -52,6 +69,11 @@ export default function ChapterRow({
   const [, forceUpdate] = useState(0);
 
   useEffect(() => { setNameVal(chap.name); }, [chap.name]);
+
+  useEffect(() => {
+    if (!openAddTask) return;
+    setShowAdd(true);
+  }, [openAddTask]);
 
   const active = tasks.filter(t => t.status !== "Done");
   const done   = tasks.filter(t => t.status === "Done");
@@ -97,88 +119,44 @@ export default function ChapterRow({
         opacity:      chap.done ? 0.6 : 1,
       }}
     >
-      {/* Chapter header */}
-      <div style={{ background: C.sur2, border: `1px solid ${C.bdr2}`, borderRadius: 10, padding: "10px 14px" }}>
+      {/* Chapter header — single line */}
+      <div style={{ background: C.sur2, border: `1px solid ${C.bdr2}`, borderRadius: 10, padding: "8px 12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Drag handle */}
           <span style={{ color: C.dim, cursor: "grab", fontSize: 14, padding: "0 2px", flexShrink: 0 }}>⠿</span>
 
-          {/* Expand/collapse triangle */}
-          <button
-            onClick={toggleOpen}
-            style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 11, padding: "0 2px", flexShrink: 0, lineHeight: 1 }}
-          >
+          <button onClick={toggleOpen}
+            style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 11, padding: "0 2px", flexShrink: 0, lineHeight: 1 }}>
             {open ? "▼" : "▶"}
           </button>
 
-          {/* Manual done toggle */}
-          <button
-            onClick={onDoneToggle}
-            style={{
-              width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
-              cursor: "pointer", padding: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: chap.done ? C.grn : "transparent",
-              border: chap.done ? `1.5px solid ${C.grnL}` : `1.5px solid ${C.bdr2}`,
-            }}
-          >
-            {chap.done && (
-              <svg width="10" height="10" viewBox="0 0 12 12">
-                <polyline points="2,6 5,9 10,3" stroke="#c8f0a0" strokeWidth="2" fill="none" strokeLinecap="round" />
-              </svg>
-            )}
+          {/* Donut — also acts as done toggle */}
+          <button onClick={onDoneToggle}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center" }}>
+            <DonutChart pct={pct} done={chap.done} />
           </button>
 
+          {/* Name */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            {/* Inline-editable chapter name */}
             {editingName ? (
-              <input
-                autoFocus
-                style={{ ...inp, padding: "2px 8px", fontSize: 14, fontWeight: 500 }}
-                value={nameVal}
-                onChange={e => setNameVal(e.target.value)}
-                onBlur={saveName}
-                onKeyDown={e => {
-                  if (e.key === "Enter") saveName();
-                  if (e.key === "Escape") { setNameVal(chap.name); setEditingName(false); }
-                }}
-              />
+              <input autoFocus style={{ ...inp, padding: "2px 8px", fontSize: 14, fontWeight: 500 }}
+                value={nameVal} onChange={e => setNameVal(e.target.value)} onBlur={saveName}
+                onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") { setNameVal(chap.name); setEditingName(false); } }} />
             ) : (
-              <span
-                onClick={() => setEditingName(true)}
-                title="Click to rename"
-                style={{
-                  fontSize: 14, fontWeight: 500,
-                  color: chap.done ? C.dim : C.txt,
-                  textDecoration: chap.done ? "line-through" : "none",
-                  cursor: "text",
-                }}
-              >
+              <span onClick={() => setEditingName(true)} title="Click to rename"
+                style={{ fontSize: 14, fontWeight: 500, color: chap.done ? C.dim : C.txt, textDecoration: chap.done ? "line-through" : "none", cursor: "text" }}>
                 {chap.name}
               </span>
             )}
-
-            {/* Progress bar + due date */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 5 }}>
-              <div style={{ flex: 1, height: 4, background: C.bdr, borderRadius: 2 }}>
-                <div style={{
-                  height: 4, width: `${pct}%`,
-                  background: pct === 100 ? C.grn : C.blue,
-                  borderRadius: 2, transition: "width .3s",
-                }} />
-              </div>
-              <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap" }}>
-                {pct}% · {tasks.length} task{tasks.length !== 1 ? "s" : ""}
-              </span>
-              {/* Inline due date picker */}
-              <DateInput
-                value={chap.dueDate || ""}
-                onChange={v => onEdit({ dueDate: v || null })}
-                placeholder="Due date"
-                style={{ fontSize: 11 }}
-              />
-            </div>
           </div>
+
+          {/* Task count */}
+          {tasks.length > 0 && (
+            <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap", flexShrink: 0 }}>
+              {done.length}/{tasks.length}
+            </span>
+          )}
+
+          <DateInput value={chap.dueDate || ""} onChange={v => onEdit({ dueDate: v || null })} placeholder="Due date" style={{ fontSize: 11 }} />
 
           <button onClick={onDelete} style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>
         </div>
