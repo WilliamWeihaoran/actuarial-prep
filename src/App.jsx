@@ -10,7 +10,8 @@ import PracticeTab   from "./components/PracticeTab";
 import AnalyticsTab  from "./components/AnalyticsTab";
 
 const { btn, btnP } = styles;
-const TABS = ["Tasks", "Topics", "Mistakes", "Practice", "Analytics"];
+const EXAM_TABS    = ["Tasks", "Topics", "Mistakes", "Practice", "Analytics"];
+const PROJECT_TABS = ["Tasks", "Topics", "Analytics"];
 
 export default function App() {
   const { data, update, loading, saving, loadError, saveError } = useData();
@@ -32,6 +33,9 @@ export default function App() {
   const examId = activeExamId ?? visibleExams[0]?.id ?? null;
   const exam   = data.exams.find(e => e.id === examId);
 
+  const examType     = exam?.type ?? "exam";
+  const visibleTabs  = examType === "project" ? PROJECT_TABS : EXAM_TABS;
+
   const examChapters = data.chapters.filter(c => c.examId === examId);
   const examTasks    = data.tasks.filter(t => t.examId === examId);
 
@@ -50,6 +54,11 @@ export default function App() {
   const targetHours = exam?.targetHours || 100;
   const hourPct    = Math.min(100, Math.round(doneHours / targetHours * 100));
 
+  // Project: progress = tasks done / total eligible (non-cancelled)
+  const eligibleTasks = examTasks.filter(t => t.status !== "Cancelled");
+  const doneTasks     = eligibleTasks.filter(t => t.status === "Done");
+  const taskPct       = eligibleTasks.length > 0 ? Math.round(doneTasks.length / eligibleTasks.length * 100) : 0;
+
   // ── Exam actions ───────────────────────────────────────────────
   const saveExams = (updated) => {
     update(d => ({ ...d, exams: updated }));
@@ -61,6 +70,11 @@ export default function App() {
   };
 
   const switchExam = (id) => { setActiveExamId(id); setSubTab("Tasks"); setShowManage(false); };
+
+  // If current subTab is not available for this milestone type, reset to Tasks
+  useEffect(() => {
+    if (!visibleTabs.includes(subTab)) setSubTab("Tasks");
+  }, [examType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Chapter actions ────────────────────────────────────────────
   const addChapter = (chap) =>
@@ -197,12 +211,18 @@ const target = TAB_MAP[e.key.toLowerCase()];
   if (visibleExams.length === 0) return (
     <div style={{ background: C.bg, minHeight: "100vh", padding: "1.25rem", fontFamily: "system-ui, sans-serif", color: C.txt }}>
       <button style={btnP} onClick={() => setShowManage(true)}>+ Add your first exam</button>
-      {showManage && <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />}
     </div>
   );
 
   const pad = winW < 500 ? "0.5rem 0.75rem" : "1.25rem";
   const isPhoneLand = winW > winH && winH < 500;
+
+  // ── Manage milestones: full-screen page ───────────────────────
+  if (showManage) return (
+    <div style={{ background: C.bg, minHeight: "100vh", padding: pad, fontFamily: "system-ui, sans-serif", color: C.txt, boxSizing: "border-box" }}>
+      <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />
+    </div>
+  );
 
   // ── Focus mode: full-screen, hides all nav/chrome ─────────────
   if (focusTask) {
@@ -249,13 +269,19 @@ const target = TAB_MAP[e.key.toLowerCase()];
           </div>
           {/* Inline compact progress */}
           <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 12, color: C.mut, whiteSpace: "nowrap" }}>
-              <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours}h
-            </span>
+            {examType === "project" ? (
+              <span style={{ fontSize: 12, color: C.mut, whiteSpace: "nowrap" }}>
+                <strong style={{ color: C.txt }}>{doneTasks.length}</strong>/{eligibleTasks.length} tasks
+              </span>
+            ) : (
+              <span style={{ fontSize: 12, color: C.mut, whiteSpace: "nowrap" }}>
+                <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours}h
+              </span>
+            )}
             <div style={{ width: 56, height: 6, background: C.bdr, borderRadius: 3, flexShrink: 0 }}>
-              <div style={{ height: 6, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
+              <div style={{ height: 6, width: `${examType === "project" ? taskPct : hourPct}%`, background: (examType === "project" ? taskPct : hourPct) >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
             </div>
-            <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt, whiteSpace: "nowrap" }}>{hourPct}%</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: (examType === "project" ? taskPct : hourPct) >= 80 ? C.grnL : C.txt, whiteSpace: "nowrap" }}>{examType === "project" ? taskPct : hourPct}%</span>
             {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap" }}>· {fmtRelDate(exam.dueDate)}</span>}
           </div>
           {/* Controls */}
@@ -306,7 +332,7 @@ const target = TAB_MAP[e.key.toLowerCase()];
                   </button>
                   <button onMouseDown={() => { setShowManage(v => !v); setShowDotsMenu(false); }}
                     style={{ ...btn, width: "100%", textAlign: "left", borderRadius: 0, border: "none", padding: "10px 14px", fontSize: 13 }}>
-                    Edit projects
+                    Edit milestones
                   </button>
                 </div>
               )}
@@ -315,32 +341,42 @@ const target = TAB_MAP[e.key.toLowerCase()];
             <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A−</button>
             <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A+</button>
             <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px" }}>
-              Edit projects
+              Edit milestones
             </button>
           </>)}
         </div>
 
-        {/* Hours bar */}
+        {/* Progress bar */}
         <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "8px 14px", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-            <span style={{ fontSize: 12, color: C.mut }}>
-              <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours} hrs
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt }}>{hourPct}%</span>
-            {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {fmtRelDate(exam.dueDate)}</span>}
-          </div>
-          <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
-            <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
-          </div>
+          {examType === "project" ? (<>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+              <span style={{ fontSize: 12, color: C.mut }}>
+                <strong style={{ color: C.txt }}>{doneTasks.length}</strong>/{eligibleTasks.length} tasks
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: taskPct >= 80 ? C.grnL : C.txt }}>{taskPct}%</span>
+              {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {fmtRelDate(exam.dueDate)}</span>}
+            </div>
+            <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
+              <div style={{ height: 5, width: `${taskPct}%`, background: taskPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
+            </div>
+          </>) : (<>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+              <span style={{ fontSize: 12, color: C.mut }}>
+                <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours} hrs
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt }}>{hourPct}%</span>
+              {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {fmtRelDate(exam.dueDate)}</span>}
+            </div>
+            <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
+              <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
+            </div>
+          </>)}
         </div>
       </>)}
 
-      {/* Manage exams panel */}
-      {showManage && <ManageExams exams={data.exams} onSave={saveExams} onClose={() => setShowManage(false)} />}
-
       {/* Sub-tabs — horizontally scrollable on narrow screens */}
       <div style={{ display: "flex", gap: 4, marginBottom: 12, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>
-        {TABS.map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab}
             onClick={() => setSubTab(tab)}

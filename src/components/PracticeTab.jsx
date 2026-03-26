@@ -597,7 +597,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         background: C.sur, borderRadius: 14,
         border: `1px solid ${C.bdr}`,
         borderTop: `3px solid ${C.blue}`,
-        overflow: "hidden", marginBottom: 14,
+        marginBottom: 14,
       }}>
         {/* Card header */}
         {!isSetupLand && (
