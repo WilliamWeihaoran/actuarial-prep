@@ -269,9 +269,20 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   const markQ = (i, val) => {
     setMarks(m => ({ ...m, [i]: m[i] === val ? null : val }));
     if (val === false) {
+      // auto-add to log when marked wrong
       setDetails(prev => prev[i] ? prev : {
         ...prev,
         [i]: { topic: cfg.type === "topic" ? cfg.topic : (topics[0] || "General"), description: "", flagged: grid[i]?.flagged || false, open: false, logged: false },
+      });
+    } else if (val === true) {
+      // remove from log if not yet committed when marked correct
+      setDetails(prev => {
+        if (prev[i] && !prev[i].logged) {
+          const next = { ...prev };
+          delete next[i];
+          return next;
+        }
+        return prev;
       });
     }
   };
@@ -600,32 +611,27 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           /* ── Landscape: compact inline-row layout ── */
           <div style={{ padding: "10px 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
 
-            {/* Name row */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 46, fontSize: 10, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>Name</div>
-              <input style={{ ...inp, flex: 1 }} placeholder="Session name (optional)" value={cfg.name}
+            {/* Name + Qs + StartFrom all on one row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+              <div style={{ width: 44, fontSize: 10, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>Name</div>
+              <input style={{ ...inp, flex: 1, minWidth: 0 }} placeholder="Session name (optional)" value={cfg.name}
                 onChange={e => setCfg({ ...cfg, name: e.target.value })} />
+              <input type="number" style={{ ...inp, width: 52, textAlign: "center", flexShrink: 0 }} value={cfg.count}
+                onChange={e => setCfg({ ...cfg, count: e.target.value })}
+                onBlur={() => { const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30)); setCfg(c => ({ ...c, count: String(n) })); }} />
+              <span style={{ fontSize: 10, color: C.dim, flexShrink: 0 }}>Qs from</span>
+              <input type="number" style={{ ...inp, width: 52, textAlign: "center", flexShrink: 0 }} value={cfg.startFrom}
+                onChange={e => setCfg({ ...cfg, startFrom: e.target.value })}
+                onBlur={() => { const n = Math.max(1, parseInt(cfg.startFrom) || 1); setCfg(c => ({ ...c, startFrom: String(n) })); }} />
             </div>
 
-            {/* Setup + Timer rows — CSS grid keeps dividers column-aligned */}
-            <div style={{ display: "grid", gridTemplateColumns: "46px auto 1px 1fr", columnGap: 7, rowGap: 8, alignItems: "center" }}>
+            {/* Setup + Timer rows — simple 2-col grid, full 1fr for content */}
+            <div style={{ display: "grid", gridTemplateColumns: "44px 1fr", columnGap: 7, rowGap: 8, alignItems: "center" }}>
 
               {/* Setup: label */}
               <div style={{ fontSize: 10, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em" }}>Setup</div>
-              {/* Setup: pre-divider */}
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <input type="number" style={{ ...inp, width: 64, textAlign: "center" }} value={cfg.count}
-                  onChange={e => setCfg({ ...cfg, count: e.target.value })}
-                  onBlur={() => { const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30)); setCfg(c => ({ ...c, count: String(n) })); }} />
-                <span style={{ fontSize: 10, color: C.dim, flexShrink: 0 }}>Qs · from</span>
-                <input type="number" style={{ ...inp, width: 64, textAlign: "center" }} value={cfg.startFrom}
-                  onChange={e => setCfg({ ...cfg, startFrom: e.target.value })}
-                  onBlur={() => { const n = Math.max(1, parseInt(cfg.startFrom) || 1); setCfg(c => ({ ...c, startFrom: String(n) })); }} />
-              </div>
-              {/* Setup: divider */}
-              <div style={{ height: 22, background: C.bdr }} />
-              {/* Setup: post-divider */}
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              {/* Setup: Exam/Topic + topic select */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
                 {[["exam", "Exam"], ["topic", "Topic"]].map(([val, label]) => {
                   const sel = cfg.type === val;
                   return (
@@ -646,8 +652,8 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
 
               {/* Timer: label */}
               <div style={{ fontSize: 10, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em" }}>Timer</div>
-              {/* Timer: pre-divider */}
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              {/* Timer: Untimed/Timed + time options inline */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
                 {[["untimed", "Untimed", C.blueBg, C.blueL, C.blueBd], ["timed", "Timed", C.ambBg, C.ambL, C.amb]].map(([val, label, sbg, sc, sbd]) => {
                   const sel = cfg.timerMode === val;
                   return (
@@ -659,22 +665,19 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
                     </button>
                   );
                 })}
-              </div>
-              {/* Timer: divider */}
-              <div style={{ height: 22, background: C.bdr }} />
-              {/* Timer: post-divider */}
-              <div style={{ display: "flex", gap: 5, opacity: cfg.timerMode === "timed" ? 1 : 0.3, pointerEvents: cfg.timerMode === "timed" ? "auto" : "none", transition: "opacity 0.15s" }}>
-                {TIMER_OPTIONS.map(({ label, minutes }) => {
-                  const sel = cfg.timerDuration === minutes;
-                  return (
-                    <button key={minutes} onClick={() => setCfg({ ...cfg, timerDuration: minutes })}
-                      style={{ flex: 1, padding: "6px 0", borderRadius: 8, fontSize: 11, fontWeight: sel ? 600 : 400,
-                        background: sel ? C.ambBg : C.sur2, color: sel ? C.ambL : C.mut,
-                        border: `1px solid ${sel ? C.amb : C.bdr2}`, cursor: "pointer" }}>
-                      {label}
-                    </button>
-                  );
-                })}
+                <div style={{ display: "flex", gap: 4, flex: 1, minWidth: 0, opacity: cfg.timerMode === "timed" ? 1 : 0.3, pointerEvents: cfg.timerMode === "timed" ? "auto" : "none", transition: "opacity 0.15s" }}>
+                  {TIMER_OPTIONS.map(({ label, minutes }) => {
+                    const sel = cfg.timerDuration === minutes;
+                    return (
+                      <button key={minutes} onClick={() => setCfg({ ...cfg, timerDuration: minutes })}
+                        style={{ flex: 1, minWidth: 0, padding: "6px 0", borderRadius: 8, fontSize: 11, fontWeight: sel ? 600 : 400,
+                          background: sel ? C.ambBg : C.sur2, color: sel ? C.ambL : C.mut,
+                          border: `1px solid ${sel ? C.amb : C.bdr2}`, cursor: "pointer" }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -690,80 +693,70 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           /* ── Portrait: row-based layout ── */
           <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
 
-            {/* Name */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Name + Qs + StartFrom on one row; wraps to second line if screen is very narrow */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <div style={{ width: 46, fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>Name</div>
-              <input style={{ ...inp, flex: 1 }} placeholder="Session name (optional)" value={cfg.name}
+              <input style={{ ...inp, flex: 1, minWidth: 80 }} placeholder="Session name (optional)" value={cfg.name}
                 onChange={e => setCfg({ ...cfg, name: e.target.value })} />
+              <input type="number" style={{ ...inp, width: 60, textAlign: "center", flexShrink: 0 }} value={cfg.count}
+                onChange={e => setCfg({ ...cfg, count: e.target.value })}
+                onBlur={() => { const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30)); setCfg(c => ({ ...c, count: String(n) })); }} />
+              <span style={{ fontSize: 11, color: C.dim, flexShrink: 0 }}>Qs from</span>
+              <input type="number" style={{ ...inp, width: 60, textAlign: "center", flexShrink: 0 }} value={cfg.startFrom}
+                onChange={e => setCfg({ ...cfg, startFrom: e.target.value })}
+                onBlur={() => { const n = Math.max(1, parseInt(cfg.startFrom) || 1); setCfg(c => ({ ...c, startFrom: String(n) })); }} />
             </div>
 
             <div style={{ height: 1, background: C.bdr }} />
 
-            {/* Setup + Timer — shared grid keeps labels and button rows column-aligned */}
-            <div style={{ display: "grid", gridTemplateColumns: "46px 1fr", columnGap: 10, rowGap: 12, alignItems: "start" }}>
+            {/* Setup + Timer — 4-col grid: label | btn1 | btn2 | flexible content
+                Buttons share columns so they auto-align vertically */}
+            <div style={{ display: "grid", gridTemplateColumns: "46px auto auto 1fr", columnGap: 8, rowGap: 12, alignItems: "center" }}>
 
-              {/* Setup label */}
-              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", paddingTop: 9 }}>Setup</div>
-              {/* Setup content */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {[["exam", "Full exam"], ["topic", "By topic"]].map(([val, label]) => {
-                    const sel = cfg.type === val;
-                    return (
-                      <button key={val} onClick={() => setCfg({ ...cfg, type: val })}
-                        style={{ padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400, flexShrink: 0,
-                          background: sel ? C.blueBg : C.sur2, color: sel ? C.blueL : C.mut,
-                          border: `1px solid ${sel ? C.blueBd : C.bdr2}`, cursor: "pointer" }}>
-                        {label}
-                      </button>
-                    );
-                  })}
-                  {topics.length > 0 && (
-                    <div style={{ flex: 1, minWidth: 0, opacity: cfg.type === "topic" ? 1 : 0.3, pointerEvents: cfg.type === "topic" ? "auto" : "none", transition: "opacity 0.15s" }}>
-                      <CustomSelect value={cfg.topic} options={topics} onChange={v => setCfg({ ...cfg, topic: v })} />
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <input type="number" style={{ ...inp, width: 64, textAlign: "center" }} value={cfg.count}
-                    onChange={e => setCfg({ ...cfg, count: e.target.value })}
-                    onBlur={() => { const n = Math.min(100, Math.max(1, parseInt(cfg.count) || 30)); setCfg(c => ({ ...c, count: String(n) })); }} />
-                  <span style={{ fontSize: 11, color: C.dim, flexShrink: 0 }}>Qs · from</span>
-                  <input type="number" style={{ ...inp, width: 64, textAlign: "center" }} value={cfg.startFrom}
-                    onChange={e => setCfg({ ...cfg, startFrom: e.target.value })}
-                    onBlur={() => { const n = Math.max(1, parseInt(cfg.startFrom) || 1); setCfg(c => ({ ...c, startFrom: String(n) })); }} />
-                </div>
+              {/* Setup row */}
+              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em" }}>Setup</div>
+              {[["exam", "Full exam"], ["topic", "By topic"]].map(([val, label]) => {
+                const sel = cfg.type === val;
+                return (
+                  <button key={val} onClick={() => setCfg({ ...cfg, type: val })}
+                    style={{ padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400,
+                      background: sel ? C.blueBg : C.sur2, color: sel ? C.blueL : C.mut,
+                      border: `1px solid ${sel ? C.blueBd : C.bdr2}`, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    {label}
+                  </button>
+                );
+              })}
+              <div style={{ minWidth: 0, opacity: cfg.type === "topic" ? 1 : 0.3, pointerEvents: cfg.type === "topic" ? "auto" : "none", transition: "opacity 0.15s" }}>
+                {topics.length > 0 && <CustomSelect value={cfg.topic} options={topics} onChange={v => setCfg({ ...cfg, topic: v })} />}
               </div>
 
-              {/* Divider spanning both columns */}
+              {/* Divider spanning all columns */}
               <div style={{ gridColumn: "1 / -1", height: 1, background: C.bdr }} />
 
-              {/* Timer label */}
-              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em", paddingTop: 9 }}>Timer</div>
-              {/* Timer content */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {[["untimed", "Untimed", C.blueBg, C.blueL, C.blueBd], ["timed", "Timed", C.ambBg, C.ambL, C.amb]].map(([val, label, sbg, sc, sbd]) => {
-                    const sel = cfg.timerMode === val;
-                    return (
-                      <button key={val} onClick={() => setCfg({ ...cfg, timerMode: val })}
-                        style={{ padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400, flexShrink: 0,
-                          background: sel ? sbg : C.sur2, color: sel ? sc : C.mut,
-                          border: `1px solid ${sel ? sbd : C.bdr2}`, cursor: "pointer" }}>
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{ opacity: cfg.timerMode === "timed" ? 1 : 0.3, pointerEvents: cfg.timerMode === "timed" ? "auto" : "none", transition: "opacity 0.15s" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
+              {/* Timer row */}
+              <div style={{ fontSize: 11, fontWeight: 500, color: C.mut, textTransform: "uppercase", letterSpacing: "0.05em" }}>Timer</div>
+              {[["untimed", "Untimed"], ["timed", "Timed"]].map(([val, label]) => {
+                const sel = cfg.timerMode === val;
+                return (
+                  <button key={val} onClick={() => setCfg({ ...cfg, timerMode: val })}
+                    style={{ padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: sel ? 600 : 400,
+                      background: sel ? C.blueBg : C.sur2, color: sel ? C.blueL : C.mut,
+                      border: `1px solid ${sel ? C.blueBd : C.bdr2}`, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    {label}
+                  </button>
+                );
+              })}
+              {/* Timer presets — scrollable when they don't fit */}
+              <div style={{ minWidth: 0, opacity: cfg.timerMode === "timed" ? 1 : 0.3, pointerEvents: cfg.timerMode === "timed" ? "auto" : "none", transition: "opacity 0.15s" }}>
+                <div style={{ overflowX: "auto" }}>
+                  <div style={{ display: "flex", gap: 6 }}>
                     {TIMER_OPTIONS.map(({ label, minutes }) => {
                       const sel = cfg.timerDuration === minutes;
                       return (
                         <button key={minutes} onClick={() => setCfg({ ...cfg, timerDuration: minutes })}
-                          style={{ padding: "8px 0", borderRadius: 9, fontSize: 12, fontWeight: sel ? 600 : 400,
-                            background: sel ? C.ambBg : C.sur2, color: sel ? C.ambL : C.mut,
-                            border: `1px solid ${sel ? C.amb : C.bdr2}`, cursor: "pointer" }}>
+                          style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 9, fontSize: 12, fontWeight: sel ? 600 : 400,
+                            background: sel ? C.blueBg : C.sur2, color: sel ? C.blueL : C.mut,
+                            border: `1px solid ${sel ? C.blueBd : C.bdr2}`, cursor: "pointer" }}>
                           {label}
                         </button>
                       );
@@ -974,7 +967,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
   // ── Active session ─────────────────────────────────────────────
   if (mode === "active") {
     const isActiveLand = winWidth > winHeight && winWidth >= 500;
-    const leftW = winHeight < 500 ? 190 : winHeight < 700 ? 240 : 260;
+    const leftW = winHeight < 500 ? 170 : winHeight < 700 ? 240 : 260;
 
     const timerBg    = paused ? C.ambBg : timerCritical ? C.redBg : C.sur2;
     const timerBd    = paused ? C.amb   : timerCritical ? C.red   : timerWarning ? C.amb : C.bdr2;
@@ -990,9 +983,8 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
     const half   = Math.ceil(grid.length / 2);
 
     const colHeader = (
-      <div style={{ display: "flex", alignItems: "center", gap: 5, paddingBottom: 4, marginBottom: 2, borderBottom: `1px solid ${C.bdr}` }}>
-        <div style={{ width: 32, flexShrink: 0 }} />
-        <div style={{ width: 38, fontSize: 10, color: C.dim, textAlign: "center", flexShrink: 0 }}>Q#</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, paddingBottom: 4, marginBottom: 2, borderBottom: `1px solid ${C.bdr}` }}>
+        <div style={{ width: 34, fontSize: 10, color: C.dim, textAlign: "center", flexShrink: 0 }}>Q#</div>
         {CHOICES.map(ch => (
           <div key={ch} style={{ flex: 1, fontSize: 10, color: C.dim, textAlign: "center" }}>{ch}</div>
         ))}
@@ -1006,22 +998,16 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
           {localIdx > 0 && localIdx % 5 === 0 && (
             <div style={{ height: 2, background: C.bdr2, margin: "10px 0 8px", borderRadius: 1 }} />
           )}
-          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 0", borderBottom: `1px solid ${C.bdr}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 0", borderBottom: `1px solid ${C.bdr}` }}>
             <button onClick={() => toggleFlag(i)}
-              style={{ width: 32, height: 36, borderRadius: 6, fontSize: 13, flexShrink: 0,
-                background: q.flagged ? C.redBg : "transparent",
-                color:      q.flagged ? C.redL  : C.dim,
-                border:     `1px solid ${q.flagged ? C.red : C.bdr2}`,
-                cursor: "pointer" }}>
-              ⚑
-            </button>
-            <div style={{ width: 38, height: 36, borderRadius: 6, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600,
-              background: isActive ? C.blue  : C.sur2,
-              color:      isActive ? "#fff"  : q.choice ? C.txt : C.dim,
-              border:     `1px solid ${isActive ? C.blue : C.bdr}`,
-              boxShadow:  isActive ? `0 0 8px ${C.blue}88` : "none" }}>
+              style={{ width: 34, height: 36, borderRadius: 6, fontSize: 11, fontWeight: 600, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                background: isActive ? C.blue  : q.flagged ? C.redBg : C.sur2,
+                color:      isActive ? "#fff"  : q.flagged ? C.redL  : q.choice ? C.txt : C.dim,
+                border:     `1px solid ${isActive ? C.blue : q.flagged ? C.red : C.bdr}`,
+                boxShadow:  isActive ? `0 0 8px ${C.blue}88` : "none" }}>
               {startFromNum + i}
-            </div>
+            </button>
             {CHOICES.map(ch => {
               const sel = q.choice === ch;
               const bg  = sel && q.confidence === 1 ? C.grn  : sel && q.confidence === 2 ? C.amb  : C.sur2;
@@ -1060,7 +1046,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         <div style={{
           width: leftW, flexShrink: 0,
           display: "flex", flexDirection: "column",
-          padding: winHeight < 500 ? "8px 12px" : "12px 16px",
+          padding: winHeight < 500 ? "8px 8px" : "12px 16px",
           borderRight: `1px solid ${C.bdr}`,
           overflow: "hidden",
         }}>
@@ -1086,7 +1072,6 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             }}>
               {fmt(timeDisplay)}
             </span>
-            <span style={{ fontSize: 9, fontWeight: 600, color: C.ambL, visibility: paused ? "visible" : "hidden", flexShrink: 0 }}>PAUSED</span>
           </div>
 
           {/* Warning */}
@@ -1134,7 +1119,7 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         </div>
 
         {/* Right panel: scrollable question grid */}
-        <div style={{ flex: 1, overflowY: "auto", padding: winHeight < 500 ? "8px 12px" : "10px 16px", opacity: paused ? 0.45 : 1, pointerEvents: paused ? "none" : "auto" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: winHeight < 500 ? "8px 8px" : "10px 16px", opacity: paused ? 0.45 : 1, pointerEvents: paused ? "none" : "auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
               {colHeader}
@@ -1187,7 +1172,6 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
             }}>
               {fmt(timeDisplay)}
             </span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: C.ambL, visibility: paused ? "visible" : "hidden", flexShrink: 0 }}>PAUSED</span>
           </div>
 
           <div style={{ height: 18, textAlign: "center" }}>
@@ -1270,16 +1254,24 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 8px", borderRadius: 6, marginBottom: 2,
           background: isCorrect ? C.grnBg : isWrong ? C.redBg : "transparent",
           border: `1px solid ${isCorrect ? C.grn : isWrong ? C.red : "transparent"}` }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-            background: q.confidence === 1 ? C.grnL : q.confidence === 2 ? C.ambL : C.bdr2 }} />
-          <span style={{ fontSize: 12, fontWeight: 600, minWidth: 32, color: isCorrect ? C.grnL : isWrong ? C.redL : C.txt }}>
+          {/* Q# — red border/text when flagged */}
+          <div style={{ width: 36, height: 32, borderRadius: 6, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, fontWeight: 600,
+            background: C.sur2,
+            color: isCorrect ? C.grnL : isWrong ? C.redL : q.flagged ? C.redL : C.txt,
+            border: `1px solid ${q.flagged ? C.red : C.bdr}` }}>
             Q{startFromNum + i}
-          </span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 5px", borderRadius: 4, minWidth: 18, textAlign: "center",
-            background: q.choice ? C.blueBg : C.sur2, color: q.choice ? C.blueL : C.dim }}>
+          </div>
+          {/* Choice badge — green = confident, amber = unsure */}
+          <div style={{ width: 30, height: 32, borderRadius: 6, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14, fontWeight: 700,
+            background: q.choice ? (q.confidence === 1 ? C.grn : C.amb) : C.sur2,
+            color:      q.choice ? (q.confidence === 1 ? C.grnL : C.ambL) : C.dim,
+            border:     `1px solid ${q.choice ? (q.confidence === 1 ? C.grnL : C.ambL) : C.bdr2}` }}>
             {q.choice || "—"}
-          </span>
-          {q.flagged && <span style={{ fontSize: 10, color: C.redL, flexShrink: 0 }}>⚑</span>}
+          </div>
           <div style={{ flex: 1 }} />
           <button
             onClick={() => toggleLog(i)}
@@ -1430,16 +1422,82 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
       { label: "Score",    value: `${d.score}%`, bg: scoreBg, bd: scoreBd, c: scoreColor },
     ];
 
+    const isSumLand = winWidth > winHeight && winHeight < 500;
+    const fmtSec = (s) => s != null ? (s >= 60 ? `${Math.floor(s/60)}m ${s%60}s` : `${s}s`) : "—";
+    const timeRows = d.timeStats ? [
+      { label: "Overall avg", value: d.timeStats.overall,   color: C.blueL, bg: C.blueBg, bd: C.blueBd },
+      { label: "Confident",   value: d.timeStats.confident, color: C.grnL,  bg: C.grnBg,  bd: C.grn    },
+      { label: "Unsure",      value: d.timeStats.unsure,    color: C.ambL,  bg: C.ambBg,  bd: C.amb    },
+      { label: "Correct qs",  value: d.timeStats.correct,   color: C.grnL,  bg: C.grnBg,  bd: C.grn    },
+      { label: "Wrong qs",    value: d.timeStats.wrong,     color: C.redL,  bg: C.redBg,  bd: C.red    },
+    ].filter(r => r.value != null) : [];
+
+    if (isSumLand) return (
+      <div style={{ padding: "8px 0" }}>
+        {/* Header + Done button */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.txt, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
+            <div style={{ fontSize: 11, color: C.dim }}>{d.date} · {fmt(d.duration)} · {d.questionCount}Q</div>
+          </div>
+          <button style={{ ...btnP, padding: "8px 20px", flexShrink: 0 }} onClick={reset}>Done</button>
+        </div>
+
+        {/* 4 stat cards in one row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 10 }}>
+          {statCards.map(({ label, value, bg, bd, c }) => (
+            <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: c }}>{value}</div>
+              <div style={{ fontSize: 10, color: C.mut, marginTop: 2 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Accuracy bar + Flagged + Mistakes in one row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, marginBottom: timeRows.length ? 10 : 0 }}>
+          <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: C.mut }}>Accuracy</span>
+              <span style={{ fontSize: 11, color: scoreColor, fontWeight: 600 }}>{d.score}%</span>
+            </div>
+            <div style={{ height: 6, background: C.bdr, borderRadius: 3 }}>
+              <div style={{ height: 6, width: `${d.score}%`, background: scoreColor, borderRadius: 3, transition: "width .4s" }} />
+            </div>
+          </div>
+          <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "10px 14px", minWidth: 90 }}>
+            <div style={{ fontSize: 10, color: C.mut, marginBottom: 4 }}>Flagged</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: d.flagged > 0 ? C.redL : C.grnL }}>{d.flagged}</div>
+          </div>
+          <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "10px 14px", minWidth: 110 }}>
+            <div style={{ fontSize: 10, color: C.mut, marginBottom: 4 }}>Mistakes logged</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: d.logged > 0 ? C.ambL : C.grnL }}>{d.logged}</div>
+          </div>
+        </div>
+
+        {/* Time stats — all in one row */}
+        {timeRows.length > 0 && (
+          <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 10, color: C.dim, marginBottom: 8 }}>Avg time / question · {d.timeStats.count} of {d.questionCount} tracked</div>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${timeRows.length}, 1fr)`, gap: 6 }}>
+              {timeRows.map(({ label, value, color, bg, bd }) => (
+                <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 8, padding: "8px 10px", textAlign: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color }}>{fmtSec(value)}</div>
+                  <div style={{ fontSize: 9, color: C.mut, marginTop: 2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+
     return (
       <div style={{ padding: "1rem 0" }}>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 11, color: C.dim, marginBottom: 6 }}>{d.date} · {fmt(d.duration)}</div>
           <div style={{ fontSize: 20, fontWeight: 600, color: C.txt, marginBottom: 4 }}>{d.name}</div>
-          <div style={{
-            display: "inline-block", fontSize: 42, fontWeight: 700,
-            color: scoreColor, padding: "8px 0",
-          }}>
+          <div style={{ display: "inline-block", fontSize: 42, fontWeight: 700, color: scoreColor, padding: "8px 0" }}>
             {d.score}%
           </div>
           <div style={{ fontSize: 12, color: C.mut }}>{d.questionCount} questions · {fmt(d.duration)}</div>
@@ -1479,31 +1537,20 @@ export default function PracticeTab({ examId, chapters, sessions = [], mistakes 
         </div>
 
         {/* Time per question stats */}
-        {d.timeStats && (() => {
-          const ts = d.timeStats;
-          const fmtSec = (s) => s != null ? (s >= 60 ? `${Math.floor(s/60)}m ${s%60}s` : `${s}s`) : "—";
-          const rows = [
-            { label: "Overall avg",   value: ts.overall,    color: C.blueL,  bg: C.blueBg, bd: C.blueBd },
-            { label: "Confident",     value: ts.confident,  color: C.grnL,   bg: C.grnBg,  bd: C.grn    },
-            { label: "Unsure",        value: ts.unsure,     color: C.ambL,   bg: C.ambBg,  bd: C.amb    },
-            { label: "Correct qs",   value: ts.correct,    color: C.grnL,   bg: C.grnBg,  bd: C.grn    },
-            { label: "Wrong qs",     value: ts.wrong,      color: C.redL,   bg: C.redBg,  bd: C.red    },
-          ].filter(r => r.value != null);
-          return (
-            <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 4 }}>Avg time per question</div>
-              <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>{ts.count} of {d.questionCount} questions tracked</div>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(rows.length, 3)}, 1fr)`, gap: 8 }}>
-                {rows.map(({ label, value, color, bg, bd }) => (
-                  <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color }}>{fmtSec(value)}</div>
-                    <div style={{ fontSize: 10, color: C.mut, marginTop: 3 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
+        {timeRows.length > 0 && (
+          <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: C.txt, marginBottom: 4 }}>Avg time per question</div>
+            <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>{d.timeStats.count} of {d.questionCount} questions tracked</div>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(timeRows.length, 3)}, 1fr)`, gap: 8 }}>
+              {timeRows.map(({ label, value, color, bg, bd }) => (
+                <div key={label} style={{ background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color }}>{fmtSec(value)}</div>
+                  <div style={{ fontSize: 10, color: C.mut, marginTop: 3 }}>{label}</div>
+                </div>
+              ))}
             </div>
-          );
-        })()}
+          </div>
+        )}
 
         <button style={{ ...btnP, width: "100%", padding: "10px 0", fontSize: 14 }} onClick={reset}>
           Done

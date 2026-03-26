@@ -35,11 +35,10 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
     return { year: d.getFullYear(), month: d.getMonth() };
   };
 
-  const [open,       setOpen]      = useState(false);
-  const [above,      setAbove]     = useState(false);
-  const [alignRight, setAlignRight] = useState(false);
-  const [viewYear,   setViewYear]  = useState(() => initView().year);
-  const [viewMonth,  setViewMonth] = useState(() => initView().month);
+  const [open,     setOpen]    = useState(false);
+  const [popupPos, setPopupPos] = useState({ top: 0, left: 0 });
+  const [viewYear,  setViewYear]  = useState(() => initView().year);
+  const [viewMonth, setViewMonth] = useState(() => initView().month);
   const ref = useRef(null);
 
   // Sync calendar view when value changes externally
@@ -114,8 +113,17 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
         onMouseDown={() => {
           if (!open && ref.current) {
             const rect = ref.current.getBoundingClientRect();
-            setAbove(window.innerHeight - rect.bottom < 290);
-            setAlignRight(rect.left + 240 > window.innerWidth - 8);
+            const popupW = 240;
+            const popupH = 300;
+            // visualViewport matches the coordinate space that position:fixed uses
+            const availW = window.visualViewport?.width ?? window.innerWidth;
+            const availH = window.visualViewport?.height ?? window.innerHeight;
+            const top = availH - rect.bottom >= popupH
+              ? rect.bottom + 6
+              : rect.top - popupH - 6;
+            // Right-align popup with trigger's right edge; clamp to screen bounds
+            const left = Math.max(4, Math.min(rect.right - popupW, availW - popupW - 8));
+            setPopupPos({ top: Math.max(4, top), left });
           }
           setOpen(o => !o);
         }}
@@ -136,16 +144,15 @@ export default function DateInput({ value, onChange, placeholder = "Set date", s
         <span>{value ? fmtRelDate(value) : placeholder}</span>
       </button>
 
-      {/* Calendar popup */}
+      {/* Calendar popup — fixed so no ancestor overflow can clip it */}
       {open && (
         <div style={{
-          position: "absolute", zIndex: 400,
-          ...(above ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }),
-          ...(alignRight ? { right: 0 } : { left: 0 }),
+          position: "fixed", zIndex: 400,
+          top: popupPos.top, left: popupPos.left,
           background: C.sur2, border: `1px solid ${C.bdr2}`,
           borderRadius: 12, padding: 14,
           boxShadow: "0 8px 28px rgba(0,0,0,0.55)",
-          minWidth: 230,
+          width: 240,
         }}>
           {/* Month / year nav */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
