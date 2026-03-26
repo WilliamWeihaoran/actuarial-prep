@@ -19,7 +19,7 @@ export default function App() {
   const [showManage, setShowManage]           = useState(false);
   const [focusTask, setFocusTask]             = useState(null);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
-  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem("appZoom") || "1.15"));
+  const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem("appZoom") || "1.3"));
   const [winW, setWinW] = useState(() => window.innerWidth);
   const [winH, setWinH] = useState(() => window.innerHeight);
 
