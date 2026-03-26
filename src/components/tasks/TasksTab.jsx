@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, Fragment } from "react";
-import { C, styles } from "../constants";
+import { C, styles } from "../../constants";
 
 const HOUR_OPTIONS = [
   { label: "5 min",  value: 0.0833 },
@@ -16,11 +16,11 @@ function fmtHours(h) {
   if (h < 1) return `${Math.round(h * 60)}m`;
   return `${h}h`;
 }
-import TaskCard from "./shared/TaskCard";
-import PriorityPicker from "./shared/PriorityPicker";
-import CustomSelect from "./shared/CustomSelect";
-import DateInput from "./shared/DateInput";
-import ConfirmDialog from "./shared/ConfirmDialog";
+import TaskCard from "../shared/TaskCard";
+import PriorityPicker from "../shared/PriorityPicker";
+import CustomSelect from "../shared/CustomSelect";
+import DateInput from "../shared/DateInput";
+import ConfirmDialog from "../shared/ConfirmDialog";
 const { inp, btn, btnP } = styles;
 
 const PRIO_ORDER = { High: 0, Medium: 1, Low: 2 };

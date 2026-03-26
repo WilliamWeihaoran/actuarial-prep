@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { C, PRIO, styles, fmtRelDate } from "../constants";
+import { C, PRIO, styles, fmtRelDate } from "../../constants";
 
 const { inp, btn, btnP } = styles;
 

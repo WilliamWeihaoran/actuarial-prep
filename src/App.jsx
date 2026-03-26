@@ -1,15 +1,18 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useData } from "./hooks/useData";
-import { C, styles, fmtRelDate } from "./constants";
-import ManageExams   from "./components/ManageExams";
-import FocusMode     from "./components/FocusMode";
-import TasksTab      from "./components/TasksTab";
-import TopicsTab     from "./components/TopicsTab";
-import MistakesTab   from "./components/MistakesTab";
-import PracticeTab   from "./components/PracticeTab";
-import AnalyticsTab  from "./components/AnalyticsTab";
+import { useWindowSize } from "./hooks/useWindowSize";
+import { C, styles } from "./constants";
+import ManageExams   from "./components/milestones/ManageExams";
+import FocusMode     from "./components/focus/FocusMode";
+import TasksTab      from "./components/tasks/TasksTab";
+import TopicsTab     from "./components/topics/TopicsTab";
+import MistakesTab   from "./components/mistakes/MistakesTab";
+import PracticeTab   from "./components/practice/PracticeTab";
+import AnalyticsTab  from "./components/analytics/AnalyticsTab";
+import MilestoneNav  from "./components/nav/MilestoneNav";
+import ProgressBar   from "./components/nav/ProgressBar";
 
-const { btn, btnP } = styles;
+const { btnP } = styles;
 const EXAM_TABS    = ["Tasks", "Topics", "Mistakes", "Practice", "Analytics"];
 const PROJECT_TABS = ["Tasks", "Topics", "Analytics"];
 
@@ -21,10 +24,7 @@ export default function App() {
   const [focusTask, setFocusTask]             = useState(null);
   const [practiceFullscreen, setPracticeFullscreen] = useState(false);
   const [zoom, setZoom] = useState(() => parseFloat(localStorage.getItem("appZoom") || "1.3"));
-  const [showDotsMenu, setShowDotsMenu] = useState(false);
-  const dotsMenuRef = useRef(null);
-  const [winW, setWinW] = useState(() => window.innerWidth);
-  const [winH, setWinH] = useState(() => window.innerHeight);
+  const { winW, winH } = useWindowSize();
 
   // ── Derived state ──────────────────────────────────────────────
   const visibleExams = data.exams.filter(e => !e.archived);
@@ -141,21 +141,6 @@ export default function App() {
   const deleteMistake = (id) =>
     update(d => ({ ...d, mistakes: d.mistakes.filter(m => m.id !== id) }));
 
-  // ── Window resize ──────────────────────────────────────────────
-  useEffect(() => {
-    const h = () => { setWinW(window.innerWidth); setWinH(window.innerHeight); };
-    window.addEventListener("resize", h);
-    return () => window.removeEventListener("resize", h);
-  }, []);
-
-  // ── Dots menu outside-click ────────────────────────────────────
-  useEffect(() => {
-    if (!showDotsMenu) return;
-    const h = (e) => { if (dotsMenuRef.current && !dotsMenuRef.current.contains(e.target)) setShowDotsMenu(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [showDotsMenu]);
-
   // ── Zoom ───────────────────────────────────────────────────────
   useEffect(() => {
     document.documentElement.style.zoom = String(zoom);
@@ -246,133 +231,40 @@ const target = TAB_MAP[e.key.toLowerCase()];
       {/* Nav chrome hidden when practice session is active/done */}
       {!(subTab === "Practice" && practiceFullscreen) && (<>
 
-      {isPhoneLand ? (<>
-        {/* Phone landscape: single compact row — exam tabs + inline progress + controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, borderBottom: `1px solid ${C.bdr}`, paddingBottom: 6 }}>
-          {/* Exam buttons — scrollable */}
-          <div style={{ display: "flex", gap: 4, overflowX: "auto", flex: 1, scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }}>
-            {visibleExams.map(ex => (
-              <button
-                key={ex.id}
-                onClick={() => switchExam(ex.id)}
-                style={{
-                  flexShrink: 0, padding: "4px 12px", borderRadius: 7, fontSize: 12, cursor: "pointer",
-                  fontWeight:  examId === ex.id ? 500 : 400,
-                  background:  examId === ex.id ? C.blueBg : "transparent",
-                  color:       examId === ex.id ? C.blueL  : C.mut,
-                  border:      examId === ex.id ? `1px solid ${C.blueBd}` : "1px solid transparent",
-                }}
-              >
-                {ex.name}
-              </button>
-            ))}
-          </div>
-          {/* Inline compact progress */}
-          <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
-            {examType === "project" ? (
-              <span style={{ fontSize: 12, color: C.mut, whiteSpace: "nowrap" }}>
-                <strong style={{ color: C.txt }}>{doneTasks.length}</strong>/{eligibleTasks.length} tasks
-              </span>
-            ) : (
-              <span style={{ fontSize: 12, color: C.mut, whiteSpace: "nowrap" }}>
-                <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours}h
-              </span>
-            )}
-            <div style={{ width: 56, height: 6, background: C.bdr, borderRadius: 3, flexShrink: 0 }}>
-              <div style={{ height: 6, width: `${examType === "project" ? taskPct : hourPct}%`, background: (examType === "project" ? taskPct : hourPct) >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 500, color: (examType === "project" ? taskPct : hourPct) >= 80 ? C.grnL : C.txt, whiteSpace: "nowrap" }}>{examType === "project" ? taskPct : hourPct}%</span>
-            {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap" }}>· {fmtRelDate(exam.dueDate)}</span>}
-          </div>
-          {/* Controls */}
-          {saving && <span style={{ fontSize: 11, color: C.dim, flexShrink: 0 }}>Saving…</span>}
-          <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 12, padding: "3px 8px", flexShrink: 0 }}>A−</button>
-          <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 12, padding: "3px 8px", flexShrink: 0 }}>A+</button>
-          <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px", flexShrink: 0 }}>Edit</button>
-        </div>
-      </>) : (<>
-        {/* Default: exam nav row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, borderBottom: `1px solid ${C.bdr}`, paddingBottom: 10, flexWrap: "wrap" }}>
-          {visibleExams.map(ex => (
-            <button
-              key={ex.id}
-              onClick={() => switchExam(ex.id)}
-              style={{
-                padding: "5px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer",
-                fontWeight:  examId === ex.id ? 500 : 400,
-                background:  examId === ex.id ? C.blueBg : "transparent",
-                color:       examId === ex.id ? C.blueL  : C.mut,
-                border:      examId === ex.id ? `1px solid ${C.blueBd}` : "1px solid transparent",
-              }}
-            >
-              {ex.name}
-            </button>
-          ))}
-          <div style={{ flex: 1 }} />
-          {saving && <span style={{ fontSize: 11, color: C.dim }}>Saving...</span>}
-          {winW < 500 ? (
-            <div ref={dotsMenuRef} style={{ position: "relative" }}>
-              <button
-                onClick={() => setShowDotsMenu(v => !v)}
-                style={{ ...btn, fontSize: 16, padding: "2px 10px", letterSpacing: 1 }}
-              >···</button>
-              {showDotsMenu && (
-                <div style={{
-                  position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 300,
-                  background: C.sur2, border: `1px solid ${C.bdr2}`, borderRadius: 10,
-                  boxShadow: "0 6px 20px rgba(0,0,0,0.5)", overflow: "hidden", minWidth: 160,
-                }}>
-                  <button onMouseDown={() => { setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10)); }}
-                    style={{ ...btn, width: "100%", textAlign: "left", borderRadius: 0, border: "none", borderBottom: `1px solid ${C.bdr}`, padding: "10px 14px", fontSize: 13 }}>
-                    A− &nbsp;<span style={{ color: C.dim, fontSize: 11 }}>Decrease text size</span>
-                  </button>
-                  <button onMouseDown={() => { setZoom(z => Math.min(1.5, Math.round((z + 0.1) * 10) / 10)); }}
-                    style={{ ...btn, width: "100%", textAlign: "left", borderRadius: 0, border: "none", borderBottom: `1px solid ${C.bdr}`, padding: "10px 14px", fontSize: 13 }}>
-                    A+ &nbsp;<span style={{ color: C.dim, fontSize: 11 }}>Increase text size</span>
-                  </button>
-                  <button onMouseDown={() => { setShowManage(v => !v); setShowDotsMenu(false); }}
-                    style={{ ...btn, width: "100%", textAlign: "left", borderRadius: 0, border: "none", padding: "10px 14px", fontSize: 13 }}>
-                    Edit milestones
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (<>
-            <button onClick={() => setZoom(z => Math.max(0.75, Math.round((z - 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A−</button>
-            <button onClick={() => setZoom(z => Math.min(1.5,  Math.round((z + 0.1) * 10) / 10))} style={{ ...btn, fontSize: 11, padding: "3px 8px" }}>A+</button>
-            <button onClick={() => setShowManage(v => !v)} style={{ ...btn, fontSize: 12, padding: "4px 12px" }}>
-              Edit milestones
-            </button>
-          </>)}
-        </div>
+      <MilestoneNav
+        visibleExams={visibleExams}
+        examId={examId}
+        onSwitch={switchExam}
+        zoom={zoom}
+        setZoom={setZoom}
+        onManage={setShowManage}
+        saving={saving}
+        winW={winW}
+        winH={winH}
+        practiceFullscreen={practiceFullscreen}
+        examType={examType}
+        doneHours={doneHours}
+        targetHours={targetHours}
+        hourPct={hourPct}
+        doneTasks={doneTasks}
+        eligibleTasks={eligibleTasks}
+        taskPct={taskPct}
+        dueDate={exam?.dueDate}
+      />
 
-        {/* Progress bar */}
-        <div style={{ background: C.sur, border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "8px 14px", marginBottom: 12 }}>
-          {examType === "project" ? (<>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-              <span style={{ fontSize: 12, color: C.mut }}>
-                <strong style={{ color: C.txt }}>{doneTasks.length}</strong>/{eligibleTasks.length} tasks
-              </span>
-              <span style={{ fontSize: 12, fontWeight: 500, color: taskPct >= 80 ? C.grnL : C.txt }}>{taskPct}%</span>
-              {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {fmtRelDate(exam.dueDate)}</span>}
-            </div>
-            <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
-              <div style={{ height: 5, width: `${taskPct}%`, background: taskPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
-            </div>
-          </>) : (<>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-              <span style={{ fontSize: 12, color: C.mut }}>
-                <strong style={{ color: C.txt }}>{doneHours}</strong>/{targetHours} hrs
-              </span>
-              <span style={{ fontSize: 12, fontWeight: 500, color: hourPct >= 80 ? C.grnL : C.txt }}>{hourPct}%</span>
-              {exam?.dueDate && <span style={{ fontSize: 11, color: C.dim, marginLeft: "auto" }}>Due {fmtRelDate(exam.dueDate)}</span>}
-            </div>
-            <div style={{ height: 5, background: C.bdr, borderRadius: 3 }}>
-              <div style={{ height: 5, width: `${hourPct}%`, background: hourPct >= 80 ? C.grn : C.blue, borderRadius: 3, transition: "width .3s" }} />
-            </div>
-          </>)}
-        </div>
-      </>)}
+      {/* Progress bar — shown on non-phone-landscape screens */}
+      {!isPhoneLand && (
+        <ProgressBar
+          examType={examType}
+          doneHours={doneHours}
+          targetHours={targetHours}
+          hourPct={hourPct}
+          doneTasks={doneTasks}
+          eligibleTasks={eligibleTasks}
+          taskPct={taskPct}
+          dueDate={exam?.dueDate}
+        />
+      )}
 
       {/* Sub-tabs — horizontally scrollable on narrow screens */}
       <div style={{ display: "flex", gap: 4, marginBottom: 12, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", msOverflowStyle: "none" }}>

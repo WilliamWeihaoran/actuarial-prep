@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { C, styles } from "../constants";
-import MistakeCard from "./shared/MistakeCard";
-import CustomSelect from "./shared/CustomSelect";
-import DateInput from "./shared/DateInput";
-import ConfirmDialog from "./shared/ConfirmDialog";
+import { C, styles } from "../../constants";
+import MistakeCard from "../shared/MistakeCard";
+import CustomSelect from "../shared/CustomSelect";
+import DateInput from "../shared/DateInput";
+import ConfirmDialog from "../shared/ConfirmDialog";
 
 const { inp, btn, btnP } = styles;
 

@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, Fragment } from "react";
-import { C, styles } from "../constants";
-import ChapterRow from "./shared/ChapterRow";
-import TaskCard from "./shared/TaskCard";
-import DateInput from "./shared/DateInput";
-import ConfirmDialog from "./shared/ConfirmDialog";
+import { C, styles } from "../../constants";
+import ChapterRow from "../shared/ChapterRow";
+import TaskCard from "../shared/TaskCard";
+import DateInput from "../shared/DateInput";
+import ConfirmDialog from "../shared/ConfirmDialog";
 
 const { inp, btn, btnP } = styles;
 
